@@ -21,6 +21,15 @@ export function createIssuer({ defects = new Set(), now = nowSeconds, fetchImpl,
   const refresh = new Map(); // token -> { clientId, scopes, account, revoked }
   const seenJti = new Map(); // client assertion jti -> expiry
   const has = (d) => defects.has(d);
+  // Every store is bounded: expired entries go on each request, and a hard cap drops the oldest. A long-lived workspace cannot grow without limit.
+  const housekeeping = () => {
+    const t = now();
+    for (const [k, v] of codes) if (v.expires < t) codes.delete(k);
+    for (const [k, v] of parStore) if (v.expires < t) parStore.delete(k);
+    for (const [k, v] of pendingAuth) if (v.expires < t) pendingAuth.delete(k);
+    for (const [k, e] of seenJti) if (e < t) seenJti.delete(k);
+    for (const [m, cap] of [[codes, 2000], [parStore, 2000], [pendingAuth, 500], [seenJti, 5000], [refresh, 5000]]) while (m.size > cap) m.delete(m.keys().next().value);
+  };
 
   const metadata = () => {
     const m = {
@@ -36,6 +45,7 @@ export function createIssuer({ defects = new Set(), now = nowSeconds, fetchImpl,
       token_endpoint_auth_methods_supported: ['private_key_jwt'],
       token_endpoint_auth_signing_alg_values_supported: ['ES256', 'PS384'],
       authorization_response_iss_parameter_supported: true,
+      prompt_values_supported: ['consent'],
       scopes_supported: Object.keys(SCOPES),
       protected_resources: [COMPANY_ORIGIN, MCP_URL],
       revocation_endpoint: `${ISSUER}/revoke`,
@@ -103,6 +113,7 @@ export function createIssuer({ defects = new Set(), now = nowSeconds, fetchImpl,
    * error that goes back to the agent, always with iss) or { kind: 'consent', id, ... } for the page to show.
    */
   async function startAuthorization(query) {
+    housekeeping();
     let p = { ...query };
     try {
       if (p.request_uri) {
@@ -217,6 +228,7 @@ export function createIssuer({ defects = new Set(), now = nowSeconds, fetchImpl,
 
   // The in-process "network" for the issuer host. The authorize endpoint is a browser page, served by the app, not here.
   async function handle(url, init = {}) {
+    housekeeping();
     const u = new URL(url);
     const method = String(init.method || 'GET').toUpperCase();
     try {

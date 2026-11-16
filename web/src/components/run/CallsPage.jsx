@@ -32,11 +32,12 @@ function Row({ row, open }) {
   );
 }
 
+// Every line carries its source (rule 2: a product claim needs one, else it is labelled UNVERIFIED).
 const GAPS = [
-  ["PingFederate", "13.1 documents client ID metadata documents (CIMD) and PAR, but publishes no protected_resources in its metadata. An agent must refuse without it (spec 3.2), so put a metadata layer in front, or ask for the setting."],
-  ["PingOne", "no CIMD client type found in our tests: the agent needs a registered client_id. PAR works. It expects the token endpoint as the assertion audience, where the spec wants the issuer."],
-  ["PingOne Advanced Identity Cloud", "documents CIMD profiles (no CIBA for those clients, redirects not followed); we have not tested it for protected_resources."],
-  ["Every Company", "no agent is trusted by default (spec 4.1): the operator decides which agents it accepts."],
+  ["PingFederate", "13.1 documents client ID metadata documents (CIMD) and PAR, but publishes no protected_resources in its metadata. An agent must refuse without it (spec 3.2), so put a metadata layer in front, or ask for the setting.", "CIMD and PAR: the PingFederate 13.1 CIMD page. The missing protected_resources is from our own run on 2026-11-15, not from a Ping page: UNVERIFIED in the docs (the index shows no such setting, which is not conclusive)."],
+  ["PingOne", "no CIMD client type found in our tests: the agent needs a registered client_id. PAR works. It expects the token endpoint as the assertion audience, where the spec wants the issuer.", "Our tests of one tenant on 2026-11-15; UNVERIFIED for other tenants. PAR and Private Key JWT: the PingOne application device-authorization page."],
+  ["PingOne Advanced Identity Cloud", "documents CIMD profiles (no CIBA for those clients, redirects not followed); we have not tested it for protected_resources.", "The AIC CIMD page (docs.pingidentity.com, pingoneaic, am-oauth2, oauth2-cimd). Not run by us."],
+  ["Every Company", "decides which agents it accepts (spec 4.1: it can refuse sign-in per client_id).", "Personal Agent Protocol 1.0, section 4.1."],
 ];
 
 export default function CallsPage({ ui, c }) {
@@ -57,7 +58,7 @@ export default function CallsPage({ ui, c }) {
       )}
       <div className="rp-gaps">
         <b>What's missing here (honest gaps)</b>
-        <ul>{GAPS.map(([who, what]) => <li key={who}><b>{who}:</b> {what}</li>)}</ul>
+        <ul>{GAPS.map(([who, what, src]) => <li key={who}><b>{who}:</b> {what} <span className="muted">Source: {src}</span></li>)}</ul>
       </div>
 
       {ui}

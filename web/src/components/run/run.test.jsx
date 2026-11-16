@@ -139,6 +139,7 @@ describe("the three pages", () => {
     expect(box.textContent).toMatch(/PingOne:.*no CIMD/);
     expect(box.textContent).toMatch(/Advanced Identity Cloud:.*CIMD profiles/);
     expect(box.textContent).toMatch(/decides which agents/);
+    expect(box.textContent.match(/Source:/g)).toHaveLength(4); // rule 2: every product claim names its source
   });
   it("the authorization-server radios preselect the issuer the deployment configured, and a missing one is disabled", async () => {
     const info = { hosted: false, configured: true, source: "real", realAvailable: true, defaults: { origin: CO, issuer: PF, p1Issuer: "https://p1.example/as", scope: "" } };

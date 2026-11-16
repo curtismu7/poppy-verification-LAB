@@ -5,7 +5,7 @@ import AtlasChat from "./components/AtlasChat";
 import DiagramTab from "./components/DiagramTab";
 import VerifyPanel from "./components/VerifyPanel";
 import ConsentScreen from "./components/ConsentScreen";
-import { getJson, resetWorkspace } from "./api";
+import { getJson, postJson, resetWorkspace } from "./api";
 import TopMenu, { applyFontSize } from "./top-menu/TopMenu.jsx";
 import VerifyMark from "./components/VerifyMark.jsx";
 
@@ -109,7 +109,8 @@ export default function App() {
         </nav>
         <TopMenu
           mode={{ value: info?.source === "real" ? "real" : "mock", onChange: async (source) => {
-            const res = await fetch("/api/mode", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source }) }).catch(() => null);
+            // postJson sends this browser's X-Workspace, so the mode switch is for this visitor only (rule 13).
+            const res = await postJson("/api/mode", { source }).catch(() => null);
             if (res && res.ok) { const i = await getJson("/api/info").catch(() => null); setInfo(i); getJson(`/api/story?vertical=${encodeURIComponent(vertical)}`).then(setStory, () => setStory(null)); }
           }, realAvailable: info ? info.realAvailable === true : false, realHint: info?.realReason }}
           vertical={{ value: vertical, onChange: setVertical, options: story ? story.verticals : ["banking"] }}

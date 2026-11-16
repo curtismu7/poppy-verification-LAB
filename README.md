@@ -71,4 +71,7 @@ See [docs/safety.md](docs/safety.md). Loopback bind, same-origin writes, Mock op
 - The reference is **not** a certified implementation and does not cover: Device Sign-In, DPoP, browser join (`poppy:browser-sign-in`, `web.unscoped`), the Company Agent conversation channel, the tasks endpoint, the extensions. The suite does not check those either.
 - Real mode against PingFederate: proven in the parent lab (2026-11-15) with a metadata layer in front, because PingFederate publishes no `protected_resources`. This fork's agent **refuses to sign in** without it (spec 3.2), so a bare PingFederate fails discovery on purpose.
 - Not run against a real tenant by this fork.
+- `prompt=consent` (spec 4.2) is sent only when the issuer's metadata lists it in `prompt_values_supported`; whether PingFederate shows consent without it is UNVERIFIED (discovery shows a warning).
+- Real mode contacts exactly the Company and issuer you type (host and port), including loopback or private addresses, because a local run against your own PingFederate needs that. It is a loopback-only app with a Host check; do not expose it.
+- The Mock/Real mode is per workspace (the browser's `X-Workspace`), so one visitor switching does not change another's.
 - Spec sections 10.7, 10.8 and 11 were summarised, not read verbatim, when the checks were written; the Operations extension was not read.

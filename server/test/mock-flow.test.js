@@ -45,6 +45,8 @@ test('Mock end to end: discover, PAR, consent screen, redirect with iss, token, 
   assert.equal(r.consent.company, 'company.example');
   assert.deepEqual(r.consent.scopes.map((s) => s.name), ['orders:read']);
   assert.equal(r.redirect.searchParams.get('iss'), 'https://auth.company.example', 'RFC 9207');
+  const steps = (await (await a.call('/api/state')).json()).steps;
+  assert.match(steps.find((x) => x.kind === 'par').request.body, /prompt=consent/, 'the reference issuer lists prompt=consent, so the agent sent it');
   assert.match(r.cb.headers.get('location'), /signin=ok/);
   const st = await (await a.call('/api/state')).json();
   assert.equal(st.signedIn, true);
