@@ -136,3 +136,16 @@ test('POST /api/verify/run in Real: the suite runs with the real agent identity,
   assert.ok(!seenHosts.has('different.example'));
   assert.equal((await post({ origin: 'https://company.example', issuer: 'https://auth.company.example', probePath: '//evil.example' })).status, 400);
 });
+
+test('POST /api/verify/run caps concurrent runs (429 busy) so a burst cannot starve the server', async () => {
+  const a = await mockApp();
+  const results = await Promise.all(Array.from({ length: 8 }, (_, i) => a.call('/api/verify/run', {}, `burst${i}`)));
+  const statuses = results.map((r) => r.status);
+  assert.ok(statuses.includes(200), 'some runs complete');
+  assert.ok(statuses.includes(429), `a burst of 8 is refused beyond 3 in flight: ${statuses.join(',')}`);
+  const busy = results.find((r) => r.status === 429);
+  assert.equal(busy.headers.get('retry-after'), '2');
+  assert.equal((await busy.json()).error, 'busy');
+  // and the server is healthy afterwards
+  assert.equal((await a.call('/api/verify/checks')).status, 200);
+});

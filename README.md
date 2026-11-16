@@ -31,28 +31,28 @@ npm start
 ## Ports, and what to do if the port is taken
 
 ```
-Ports: poppy-verification-LAB listens on 7820 (set with PORT, default 7820).
+Ports: poppy-verification-LAB listens on 7821 (set with PORT, default 7821).
 Port range for this app: 7800-7999.
 
 If the port is taken:
 1. Find what is using it:
-   lsof -iTCP:7820 -sTCP:LISTEN -n -P
+   lsof -iTCP:7821 -sTCP:LISTEN -n -P
 2. If it is an old copy of this app, stop that process: kill <PID>.
 3. If it is something else, stop it, or start this app on another port:
    PORT=<other port> npm start
 ```
 
-Other variable: `HOST_PORT=7820` (Docker host port). Keep both inside 7800-7999. The Vite dev server uses 7821 (`VITE_PORT`).
+Other variable: `HOST_PORT=7821` (Docker host port). Keep both inside 7800-7999. The Vite dev server uses 7821 (`VITE_PORT`).
 
 ## Run it
 
 ```sh
-./scripts/run.sh            # http://localhost:7820  (npm ci, build, doctor, start)
+./scripts/run.sh            # http://localhost:7821  (npm ci, build, doctor, start)
 npm test                    # server, web and repo tests
 npm run doctor              # preflight, same checks as /api/health
 ```
 
-Docker (OrbStack): `HOST_PORT=7820 docker compose up --build -d`. It starts in Mock. Real needs `PVL_AGENT_BASE_URL` (an https URL an issuer can reach for this agent) and the certificate settings in [docs/setup.md](docs/setup.md); with it set the app starts in Real, and the header toggle switches without a restart.
+Docker (OrbStack): `HOST_PORT=7821 docker compose up --build -d`. It starts in Mock. Real needs `PVL_AGENT_BASE_URL` (an https URL an issuer can reach for this agent) and the certificate settings in [docs/setup.md](docs/setup.md); with it set the app starts in Real, and the header toggle switches without a restart.
 
 The **Agent chat** tab is a guided script by default. With `ANTHROPIC_API_KEY` in `.env` (Real only; Mock makes no network call) it becomes a live Claude agent whose three tools are the same real steps. The tools take no host, so nothing the model reads can point the agent elsewhere.
 
@@ -66,7 +66,8 @@ See [docs/safety.md](docs/safety.md). Loopback bind, same-origin writes, Mock op
 
 ## Status and honest limits
 
-- Mock: 63 of 63 checks pass on the clean reference, and each of the 28 defects is caught by the check that names it (a test asserts both).
+- Mock: 107 of 107 checks pass on the clean reference, with PAR required or not. Each of the 28 defects trips exactly the checks pinned in `server/test/verify-suite.test.js`, and 47 further subtle mutants of the reference (`server/test/verify-mutation.test.js`) are all caught. Those mutants came from an independent review that found the first 63-check suite missed 37 of 46.
+- Every refusal check has a positive control and names the reason it expects, so a refusal for another reason (for example PAR required) is not a pass. A report with skipped checks says so: `conformant` means no failure, `complete` means every check ran.
 - The reference is **not** a certified implementation and does not cover: Device Sign-In, DPoP, browser join (`poppy:browser-sign-in`, `web.unscoped`), the Company Agent conversation channel, the tasks endpoint, the extensions. The suite does not check those either.
 - Real mode against PingFederate: proven in the parent lab (2026-11-15) with a metadata layer in front, because PingFederate publishes no `protected_resources`. This fork's agent **refuses to sign in** without it (spec 3.2), so a bare PingFederate fails discovery on purpose.
 - Not run against a real tenant by this fork.

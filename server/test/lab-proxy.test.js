@@ -9,7 +9,7 @@ import { createApp } from '../src/app.js';
 import { createHealth } from '../src/health.js';
 
 const NAME = 'poppy-verification.local.ping-devops.com';
-const PORT = 7820;
+const PORT = 7821;
 const LAUNCHER = 'https://local.ping-devops.com:8443';
 const PROXIED = { host: `${NAME}:${PORT}`, 'x-forwarded-host': 'local.ping-devops.com:8443', 'x-forwarded-proto': 'https' };
 const WRITE_PATH = '/api/reset';

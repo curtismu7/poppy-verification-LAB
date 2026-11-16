@@ -63,14 +63,22 @@ export function createIssuer({ defects = new Set(), now = nowSeconds, fetchImpl,
     if (!Number.isFinite(a.payload.iat) || !Number.isFinite(a.payload.exp)) throw new OAuthError('invalid_client', 'assertion needs iat and exp', 401);
     if (a.payload.exp <= t - 60 || a.payload.iat > t + 60) throw new OAuthError('invalid_client', 'assertion is expired or from the future', 401);
     if (a.payload.exp - a.payload.iat > 300 && !has('assertion_long_lifetime')) throw new OAuthError('invalid_client', 'assertion lifetime exceeds 5 minutes', 401);
-    if (typeof a.payload.jti !== 'string' || a.payload.jti.length < 8) throw new OAuthError('invalid_client', 'assertion needs a unique jti', 401);
+    if (typeof a.payload.jti !== 'string' || !a.payload.jti) throw new OAuthError('invalid_client', 'assertion needs a unique jti', 401);
     for (const [j, e] of seenJti) if (e < t) seenJti.delete(j);
     if (seenJti.has(a.payload.jti)) throw new OAuthError('invalid_client', 'assertion jti was already used', 401);
     seenJti.set(a.payload.jti, a.payload.exp);
     return client;
   }
 
-  const redirectMatches = (client, uri) => (client.meta.redirect_uris ?? []).some((r) => (has('loose_redirect_uri') ? uri.startsWith(r) : r === uri || (new URL(r).hostname === '127.0.0.1' && new URL(uri).hostname === '127.0.0.1' && r.split(':').slice(0, 2).join(':') === uri.split(':').slice(0, 2).join(':') && new URL(r).pathname === new URL(uri).pathname)));
+  // Spec 4.2: redirect_uri must match exactly, except the port of a loopback redirect (RFC 8252 7.3), for 127.0.0.1, [::1] or localhost.
+  const LOOPBACK = new Set(['127.0.0.1', '[::1]', 'localhost']);
+  const sameModuloLoopbackPort = (registered, asked) => {
+    let r; let q;
+    try { r = new URL(registered); q = new URL(asked); } catch { return false; }
+    if (registered === asked) return true;
+    return LOOPBACK.has(r.hostname) && r.protocol === q.protocol && r.hostname === q.hostname && r.pathname === q.pathname && r.search === q.search;
+  };
+  const redirectMatches = (client, uri) => (client.meta.redirect_uris ?? []).some((r) => (has('loose_redirect_uri') ? uri.startsWith(r) : sameModuloLoopbackPort(r, uri)));
 
   /** Pushed authorization request (RFC 9126): the agent authenticates and parks its parameters. */
   async function par(form) {

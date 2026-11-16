@@ -12,7 +12,7 @@ export { MCP_URL, COMPANY_DOMAIN, AGENT_ORIGIN, SCOPES } from './common.js';
  * `hosts` maps a host name to a handler; the reference adds company.example and auth.company.example.
  */
 export function createReference({ defects = [], now = nowSeconds, hosts = {}, parRequired = false } = {}) {
-  const unknown = defects.filter((d) => !(d in DEFECTS));
+  const unknown = defects.filter((d) => !Object.hasOwn(DEFECTS, d));
   if (unknown.length) throw new RangeError(`unknown defect: ${unknown.join(', ')}`);
   const set = new Set(defects);
   const table = new Map(Object.entries(hosts));

@@ -41,7 +41,7 @@ const SCOPE_RE = /^[\x21\x23-\x5b\x5d-\x7e]+( [\x21\x23-\x5b\x5d-\x7e]+)*$/;
 
 const safePath = (p) => typeof p === 'string' && /^\/[A-Za-z0-9._~!$&'()*+,;=:@%/-]*$/.test(p) && !p.includes('//') && !p.split('/').includes('..');
 
-export function createApp({ configFile = CONFIG, agent, health = createHealth({ runtime: hostedFrom() ? 'offline' : 'live' }), hosted = hostedFrom(), baseUrl = baseUrlFrom(), sessions = createSessions(), fetchImpl = (...a) => globalThis.fetch(...a), proxyHosts = new Set(), chat = null, localOrigin = 'http://127.0.0.1:7820' } = {}) {
+export function createApp({ configFile = CONFIG, agent, health = createHealth({ runtime: hostedFrom() ? 'offline' : 'live' }), hosted = hostedFrom(), baseUrl = baseUrlFrom(), sessions = createSessions(), fetchImpl = (...a) => globalThis.fetch(...a), proxyHosts = new Set(), chat = null, localOrigin = 'http://127.0.0.1:7821' } = {}) {
   // Rule 19: the mode is a mutable holder so POST /api/mode can switch at runtime. Every gate below reads
   // holder.hosted. A hosted build cannot switch to real: realAvailable is false there (no agent config), so it fails closed.
   // `hosted` is the old name for Mock: true = the in-process reference Company and issuer, false = the Company and issuer you type.
@@ -403,14 +403,21 @@ export function createApp({ configFile = CONFIG, agent, health = createHealth({ 
   // Mock = against a fresh in-process reference (optionally with defects, to see the suite fail); Real = against the Company and
   // issuer you typed, with this agent's real identity, Session probes only (sign-in needs a person: use the Run it tab).
   api.get('/verify/checks', (_req, res) => { res.set('Cache-Control', 'no-store'); res.json({ spec: SPEC_URL, checks: CHECK_LIST, defects: DEFECTS, reference: { origin: COMPANY_ORIGIN, issuer: ISSUER } }); });
+  // Each run does a few hundred signature operations, so a burst could starve the event loop: at most 3 run at once.
+  let verifyInFlight = 0;
   api.post('/verify/run', live(async (ws, req, res) => {
+    if (verifyInFlight >= 3) return res.status(429).set('Retry-After', '2').json({ error: 'busy', message: 'Three verification runs are already in progress. Try again in a moment.' });
+    verifyInFlight += 1;
+    try { return await verifyRun(ws, req, res); } finally { verifyInFlight -= 1; }
+  }, { needsAgent: false }));
+  const verifyRun = async (ws, req, res) => {
     const b = req.body || {};
     if (holder.hosted) {
       const defects = Array.isArray(b.defects) ? b.defects : [];
-      if (defects.length > 40 || defects.some((d) => typeof d !== 'string' || !(d in DEFECTS))) return res.status(400).json({ error: 'bad_defects', message: 'defects must be names from GET /api/verify/checks' });
+      if (defects.length > 40 || defects.some((d) => typeof d !== 'string' || !Object.hasOwn(DEFECTS, d))) return res.status(400).json({ error: 'bad_defects', message: 'defects must be names from GET /api/verify/checks' });
       const kit = createAgentKit({ redirectUri: `${localOrigin}/cb` });
       const ref = createReference({ defects, hosts: kit.hosts(), parRequired: b.parRequired === true });
-      const report = await runSuite({ origin: COMPANY_ORIGIN, fetch: ref.fetch, kit, probePath: '/poppy/api/v1/catalog', probeReady: true, driver: createReferenceDriver(ref) });
+      const report = await runSuite({ origin: COMPANY_ORIGIN, fetch: ref.fetch, kit, probePath: '/poppy/api/v1/catalog', probeReady: true, sessionClaimsEndpoint: true, driver: createReferenceDriver(ref) });
       sessions.log(ws, { kind: 'verify', response: { mode: 'mock', defects, summary: report.summary } });
       return res.json({ mode: 'mock', defects, ...report });
     }
@@ -420,10 +427,10 @@ export function createApp({ configFile = CONFIG, agent, health = createHealth({ 
     const probePath = b.probePath ?? '/poppy/api/v1/me';
     if (!safePath(probePath)) return res.status(400).json({ error: 'bad_path' });
     // Only the two typed hosts are reachable: a poppy.json that names another issuer cannot make this process call it.
-    const allowed = new Set([new URL(origin).hostname, new URL(issuer).hostname]);
+    const allowed = new Set([new URL(origin).host, new URL(issuer).host]); // host:port, so another port of the same host is not contacted
     const guarded = async (url, init = {}) => {
       const u = new URL(url);
-      if (!allowed.has(u.hostname)) throw new DiscoverError('host_not_typed', `${u.hostname} is not the Company or the issuer you typed; not contacted`);
+      if (!allowed.has(u.host)) throw new DiscoverError('host_not_typed', `${u.host} is not the Company or the issuer you typed; not contacted`);
       reach(url);
       const headers = { ...(init.headers || {}), 'x-forwarded-host': u.host, 'x-forwarded-proto': u.protocol.replace(':', '') };
       return fetchImpl(url, { ...init, headers, signal: AbortSignal.timeout(10000) });
@@ -433,7 +440,7 @@ export function createApp({ configFile = CONFIG, agent, health = createHealth({ 
     const report = await runSuite({ origin, fetch: guarded, kit, probePath, probeReady: true });
     sessions.log(ws, { kind: 'verify', response: { mode: 'real', origin, summary: report.summary } });
     return res.json({ mode: 'real', ...report });
-  }, { needsAgent: false }));
+  };
 
   api.post('/reset', (req, res) => {
     const ws = workspaceFrom(req);

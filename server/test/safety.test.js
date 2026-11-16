@@ -17,14 +17,14 @@ test('binding is loopback only unless PVL_BIND is set on purpose', () => {
 });
 
 test('ports: inside 7800-7999 and never a reserved one', () => {
-  assert.equal(portProblem(7820), null);
+  assert.equal(portProblem(7821), null);
   assert.equal(portProblem(7999), null);
   assert.match(portProblem(5449), /outside/);
   assert.match(portProblem(5500), /outside/);
   assert.match(portProblem(8080), /reserved/);
   assert.match(portProblem(4840), /reserved/);
   assert.match(portProblem(1.5), /not an integer/);
-  assert.equal(resolvePort({}), 7820);
+  assert.equal(resolvePort({}), 7821);
   assert.throws(() => resolvePort({ PORT: '8080' }));
   assert.throws(() => resolvePort({ PORT: 'abc' }));
 });
@@ -33,22 +33,22 @@ test('hostCheck: loopback passes; a public agent name passes only for its three 
   const old = process.env.PVL_AGENT_HOST;
   try {
     delete process.env.PVL_AGENT_HOST;
-    assert.equal(run(hostCheck, { headers: { host: 'localhost:7820' }, method: 'GET', originalUrl: '/api/state' }).nexted, true);
+    assert.equal(run(hostCheck, { headers: { host: 'localhost:7821' }, method: 'GET', originalUrl: '/api/state' }).nexted, true);
     assert.equal(run(hostCheck, { headers: { host: 'agent.example' }, method: 'GET', originalUrl: '/client.json' }).status, 403, 'not allowed while PVL_AGENT_HOST is unset');
     process.env.PVL_AGENT_HOST = 'Agent.Example';
-    for (const p of PUBLIC_PATHS) assert.equal(run(hostCheck, { headers: { host: 'agent.example:7820' }, method: 'GET', originalUrl: `${p}?x=1` }).nexted, true, p);
+    for (const p of PUBLIC_PATHS) assert.equal(run(hostCheck, { headers: { host: 'agent.example:7821' }, method: 'GET', originalUrl: `${p}?x=1` }).nexted, true, p);
     assert.equal(run(hostCheck, { headers: { host: 'agent.example' }, method: 'GET', originalUrl: '/api/state' }).body.error, 'public_host_scope');
     assert.equal(run(hostCheck, { headers: { host: 'agent.example' }, method: 'POST', originalUrl: '/cb' }).status, 403);
     assert.equal(run(hostCheck, { headers: { host: 'evil.example' }, method: 'GET', originalUrl: '/client.json' }).body.error, 'bad_host');
     // PVL_AGENT_HOST written with a port still means the bare name
-    process.env.PVL_AGENT_HOST = 'agent.example:7820';
-    assert.equal(run(hostCheck, { headers: { host: 'agent.example:7820' }, method: 'GET', originalUrl: '/client.json' }).nexted, true);
+    process.env.PVL_AGENT_HOST = 'agent.example:7821';
+    assert.equal(run(hostCheck, { headers: { host: 'agent.example:7821' }, method: 'GET', originalUrl: '/client.json' }).nexted, true);
     assert.equal(run(hostCheck, { headers: {}, method: 'GET', originalUrl: '/' }).status, 403);
   } finally { if (old === undefined) delete process.env.PVL_AGENT_HOST; else process.env.PVL_AGENT_HOST = old; }
 });
 
 test('sameOriginWrites: reads pass; cross-site, same-site and foreign Origin writes are refused; none, same-origin and matching Origin pass', () => {
-  const w = (headers) => run(sameOriginWrites, { method: 'POST', headers: { host: '127.0.0.1:7820', ...headers } });
+  const w = (headers) => run(sameOriginWrites, { method: 'POST', headers: { host: '127.0.0.1:7821', ...headers } });
   assert.equal(run(sameOriginWrites, { method: 'GET', headers: { 'sec-fetch-site': 'cross-site' } }).nexted, true);
   assert.equal(w({ 'sec-fetch-site': 'cross-site' }).status, 403);
   assert.equal(w({ 'sec-fetch-site': 'same-site' }).status, 403);
@@ -56,7 +56,7 @@ test('sameOriginWrites: reads pass; cross-site, same-site and foreign Origin wri
   assert.equal(w({ 'sec-fetch-site': 'same-origin' }).nexted, true);
   assert.equal(w({ origin: 'https://evil.example' }).status, 403);
   assert.equal(w({ origin: 'null' }).status, 403);
-  assert.equal(w({ origin: 'http://127.0.0.1:7820' }).nexted, true);
+  assert.equal(w({ origin: 'http://127.0.0.1:7821' }).nexted, true);
   const old = process.env.PVL_PUBLIC_HOST;
   process.env.PVL_PUBLIC_HOST = 'public.example';
   try { assert.equal(w({ origin: 'https://public.example' }).nexted, true); } finally { if (old === undefined) delete process.env.PVL_PUBLIC_HOST; else process.env.PVL_PUBLIC_HOST = old; }

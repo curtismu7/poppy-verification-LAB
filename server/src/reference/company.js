@@ -21,7 +21,6 @@ export function createCompany({ defects = new Set(), now = nowSeconds, issuer, f
   const resolveClient = makeClientResolver({ fetchImpl, has, OAuthError });
   const replay = new Map(); // `${iss}|${jti}` -> expiry
   const keyBinding = new Map(); // delegated key thumbprint -> sub (one User ID per delegated key)
-  const sessionBinding = new Map(); // `${iss}|${sid}` -> sub
 
   const poppyJson = () => ({
     protocol_version: SPEC_VERSION,
@@ -72,7 +71,6 @@ export function createCompany({ defects = new Set(), now = nowSeconds, issuer, f
       if (!Number.isFinite(d.payload.iat) || !Number.isFinite(d.payload.exp)) throw bad('the delegation needs iat and exp');
       if (d.payload.exp - d.payload.iat > MAX_DELEGATION && !has('long_delegation_ok')) throw bad('the delegation lasts more than 24 hours');
       if (d.payload.exp < t) throw bad('the delegation has expired');
-      if (['sub', 'agent_id', 'aud'].some((k) => k in d.payload)) throw bad('a delegation must not carry a User ID, Agent ID or Company');
       clientId = d.payload.iss;
       const client = await resolveClient(clientId).catch((e) => { throw bad(e.message); });
       const signer = client.keys.find((k) => k.kid === d.header.kid);
@@ -86,7 +84,7 @@ export function createCompany({ defects = new Set(), now = nowSeconds, issuer, f
 
     const c = s.payload;
     if (!has('no_aud_check') && c.aud !== ISSUER) throw bad(`Poppy-Session aud must be the Company identifier ${ISSUER}, character for character`);
-    if (typeof c.sid !== 'string' || c.sid.length < 16 || typeof c.sub !== 'string' || typeof c.jti !== 'string' || typeof c.iss !== 'string') throw bad('Poppy-Session needs iss, sid (unguessable), sub and jti');
+    if (typeof c.sid !== 'string' || !c.sid || typeof c.sub !== 'string' || typeof c.jti !== 'string' || typeof c.iss !== 'string') throw bad('Poppy-Session needs iss, sid, sub and jti');
     if (!has('no_htm_check') && c.htm !== method.toUpperCase()) throw bad('htm does not match the request method');
     const htu = url.split('#')[0].split('?')[0];
     if (!has('no_htu_check') && c.htu !== htu) throw bad('htu does not match the request URL');
@@ -102,13 +100,11 @@ export function createCompany({ defects = new Set(), now = nowSeconds, issuer, f
       if (replay.has(`${c.iss}|${c.jti}`)) throw bad('this Session jti was already used');
       replay.set(`${c.iss}|${c.jti}`, t + 2 * IAT_WINDOW);
     }
-    const sidKey = `${c.iss}|${c.sid}`;
-    if (sessionBinding.has(sidKey) && sessionBinding.get(sidKey) !== c.sub) throw bad('this sid already belongs to another User ID');
-    sessionBinding.set(sidKey, c.sub);
     if (delegatedJwk) {
       const tp = thumbprint(delegatedJwk);
       if (keyBinding.has(tp) && keyBinding.get(tp) !== c.sub) throw bad('this delegated key already signed for another User ID');
       keyBinding.set(tp, c.sub);
+      if (keyBinding.size > 5000) keyBinding.delete(keyBinding.keys().next().value);
     }
     return { sub: c.sub, sid: c.sid, clientId: c.iss };
   }
@@ -140,7 +136,7 @@ export function createCompany({ defects = new Set(), now = nowSeconds, issuer, f
       claims = issuer.verifyAccessToken(accessToken);
       const wrongResource = claims && !has('no_audience_check') && claims.aud !== resourceId && !(resourceId === MCP_URL && has('mcp_accepts_default_token') && claims.aud === COMPANY_ORIGIN);
       if (!claims || wrongResource) {
-        return { response: jsonResponse(401, { error: 'invalid_token' }, { 'www-authenticate': challenge(resourceId === MCP_URL ? `${COMPANY_ORIGIN}/.well-known/oauth-protected-resource/mcp` : '', 'error="invalid_token"') }) };
+        return { response: jsonResponse(401, { error: 'invalid_token' }, { 'www-authenticate': challenge(resourceId === MCP_URL ? `${COMPANY_ORIGIN}/.well-known/oauth-protected-resource/mcp` : `${COMPANY_ORIGIN}/.well-known/oauth-protected-resource`, 'error="invalid_token"') }) };
       }
       if (who && who.clientId !== claims.client_id && !has('token_client_mismatch_ok')) return { response: sessionFail(400, 'invalid_session', 'the access token was issued to a different client than the Session iss') };
       if (requiredScope && !has('scope_not_enforced') && !String(claims.scope).split(' ').includes(requiredScope)) {
