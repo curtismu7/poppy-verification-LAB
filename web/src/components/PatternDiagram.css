@@ -1,0 +1,54 @@
+.pat-canvas { height: 600px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
+.pat-node { padding: 14px 16px; min-width: 110px; max-width: 190px; text-align: center; font-size: var(--font-size-sm); font-weight: 600; color: var(--on-box); background: var(--box-dark); border: 2px solid var(--border); border-radius: var(--radius-md); }
+.pat-node--idp { background: var(--box-blue); }
+.pat-node--company, .pat-node--resource { background: var(--box-grey); }
+.pat-node--gateway { background: var(--box-red); border-width: 3px; }
+.pat-node--on { box-shadow: 0 0 0 3px var(--focus); }
+.pat-handle { opacity: 0; pointer-events: none; }
+.pat-edge path { stroke: var(--muted); stroke-width: 1.6; }
+.pat-edge--cp path { stroke: var(--danger-text); }
+.pat-edge--now path { stroke-width: 3.2; }
+.pat-edge--dim { opacity: 0.3; }
+.pat-reset { margin: 4px 0 8px; }
+@media (max-width: 600px) { .pat-canvas { height: 540px; } }
+/* React Flow ships light-only label and control colours; follow the theme tokens in dark mode too. */
+.pat-canvas .react-flow__controls { box-shadow: none; border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
+.pat-canvas .react-flow__controls-button { background: var(--surface); color: var(--text); border-bottom: 1px solid var(--border); }
+.pat-canvas .react-flow__controls-button:hover { background: var(--surface-2); }
+.pat-canvas .react-flow__controls-button svg { fill: currentColor; }
+.pat-canvas .react-flow__background { background: var(--surface); }
+.pat-elabel { position: absolute; pointer-events: none; padding: 1px 6px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13px; white-space: nowrap; }
+.pat-elabel--now { border-color: var(--status-info); font-weight: 700; }
+.pat-elabel--dim { opacity: 0.55; }
+/* The lede under the title. (The app's .intro is the dark header's on-box text and would vanish on the page ground.) */
+.pat__lede { margin: 0 0 10px; max-width: 80ch; color: var(--text-body); font-size: var(--font-size-sm); line-height: 1.5; }
+/* Canvas and narration side by side; the narration keeps its size, so nothing below or beside it moves as the steps play. */
+.pat-stage { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr) minmax(300px, 400px); align-items: start; }
+/* A page column too narrow for side by side (the chat): the narration goes under the canvas. */
+.pat-stage--stacked { grid-template-columns: minmax(0, 1fr); }
+.pat-stage--stacked .pat-narr__now { min-height: 0; }
+/* Beside the canvas the explanation sizes to its text: it can grow without moving the diagram. */
+.pat-narr { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.pat-narr__now { min-height: 300px; padding: 12px 14px; border: 1px solid var(--status-info); border-radius: var(--radius-lg); background: var(--surface); }
+.pat-narr__now h3 { margin: 0 0 8px; font-size: var(--font-size-lg); color: var(--text); }
+.pat-narr__now h4 { margin: 10px 0 2px; font-size: var(--font-size-2xs); font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--danger-text); }
+.pat-narr__now p { margin: 0; font-size: var(--font-size-sm); line-height: 1.5; color: var(--text-body); }
+.pat-narr__now .pat-narr__count { margin-bottom: 2px; font-size: var(--font-size-2xs); font-weight: 700; color: var(--status-info); }
+.pat-narr__list { list-style: none; margin: 0; padding: 4px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
+.pat-narr__item { display: flex; gap: 8px; align-items: baseline; width: 100%; min-height: 0; padding: 5px 8px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--text); font-weight: 500; font-size: var(--font-size-sm); text-align: left; }
+.pat-narr__item:hover { background: var(--surface-2); }
+.pat-narr__item.is-done { color: var(--muted); }
+.pat-narr__item.is-now { background: var(--surface-2); font-weight: 700; box-shadow: inset 3px 0 0 var(--status-info); }
+.pat-narr__n { flex: 0 0 auto; min-width: 1.6em; font-family: var(--font-mono); font-size: var(--font-size-2xs); color: var(--status-info); }
+.app--presenter .pat-narr__now p { font-size: var(--font-size-lg); line-height: 1.55; }
+.app--presenter .pat-narr__now h3 { font-size: var(--font-size-xl); }
+.app--presenter .pat-narr__now h4, .app--presenter .pat-narr__now .pat-narr__count { font-size: var(--font-size-sm); }
+.app--presenter .pat-narr__item { font-size: var(--font-size-base); }
+/* Narrow screens: the explanation sits above the canvas so the two stay on screen together. */
+@media (max-width: 900px) {
+  .pat-stage { grid-template-columns: 1fr; }
+  /* Above the canvas a fixed height keeps the diagram from jumping as the text changes. */
+  .pat-narr { order: -1; }
+  .pat-narr__now { min-height: 0; height: 260px; overflow-y: auto; }
+  .pat-narr__list { max-height: 170px; overflow-y: auto; }
+}

@@ -1,0 +1,13 @@
+# poppy-verification
+
+Tester-tier standalone app, a fork of poppy-agent-tester-LAB (see README). Verifies a Company and its issuer against the **Personal Agent Protocol 1.0** (published 2026-11-14, https://personalagentprotocol.org/docs/1.0/spec; not an IETF RFC). Mock (default): an in-process reference Company + issuer that passes all 63 checks, with 28 switchable defects. Real: the Company and issuer you type, with this agent's own identity.
+
+- Run: `./scripts/run.sh` (http://localhost:7820). Test: `npm test` (server `node --test test/*.test.js`, web vitest, repo `scripts/*.test.mjs`). Preflight `npm run doctor`, Reset `npm run reset`, talk track `npm run talk-track`, content pack `npm run content-pack`.
+- Core: `server/src/jose.js` (ES256 via `createECDH`; PS384 via RSA; `verifyJws` allow-lists ES256/PS384 only), `poppy.js` (agent-side delegation + Session signer), `oauth.js`, `discover.js`, `app.js` (API), `sessions.js`, `netguard.js`.
+- Reference (`server/src/reference/`): `common.js` (constants, the DEFECTS catalogue), `issuer.js` (metadata, PAR, authorize, token, refresh, revoke, CIMD checks), `clientResolver.js` (CIMD, no redirects, same-domain rules), `company.js` (poppy.json, PRM, API, MCP, the Session verifier), `index.js` (the in-process network: three made-up hosts, no sockets).
+- Verification (`server/src/verify/`): `suite.js` (the 63 checks as data + `runSuite`), `agentKit.js` (builds faulty and correct JWTs and the made-up agent hosts), `driver.js` (signs in against the reference).
+- API: `GET /api/info|state|health|verify/checks|mock/consent`, `POST /api/mode|discover|authorize|call|verify/run|mock/consent|reset`, plus `GET /client.json`, `/jwks.json`, `/cb`. Workspace id in `X-Workspace`.
+- Rules that bite: one port, 7820 (dev 7821), range 7800-7999; Mock opens no socket (a test throws on any fetch); Real contacts only the typed Company and issuer (the verify run refuses any other host, even one `poppy.json` names); only `.example` hosts in shipped text; no `generateKeyPair('ec')`; the agent refuses to sign in when discovery has a failing check (spec 3.2: `protected_resources` is a MUST); the Session `sub` is the agent-assigned User ID, never the token sub (spec 5.1).
+- Mode (rule 19): default Real when `PVL_AGENT_BASE_URL` is set, else Mock; `MODE=real` or `MODE=mock` forces; any other value is Mock (fail closed). Runtime switch: `POST /api/mode`. The live Claude chat is Real-only.
+- Every defect in `reference/common.js` must have an expected failing check in `server/test/verify-suite.test.js`; add both together.
+- Status 2026-11-16: built locally, not yet pushed; no repo exists yet. Catalog id not assigned.

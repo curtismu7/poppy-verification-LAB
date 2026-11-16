@@ -1,0 +1,14 @@
+/* Sizes and radii only. Colours, fonts and the dark theme come from the shared standalone-ui.css. */
+:root {
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-pill: 999px;
+  --font-size-3xs: 10px;
+  --font-size-2xs: 12px;
+  --font-size-xs: 11px;
+  --font-size-sm: 13px;
+  --font-size-base: 15px;
+  --font-size-lg: 18px;
+  --font-size-xl: 24px;
+}

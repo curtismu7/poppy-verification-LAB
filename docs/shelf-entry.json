@@ -1,0 +1,16 @@
+{
+  "demos": [
+    {
+      "id": "poppy-verification",
+      "name": "Poppy Verification",
+      "kind": "Tester",
+      "description": "Check a Company and its issuer against the Personal Agent Protocol 1.0: 63 spec-linked checks (discovery, issuer metadata, Poppy-Session, sign-in, resources). Mock runs a reference Company you can break with 28 defects; Real probes the Company you type.",
+      "url": "http://localhost:7820",
+      "healthPath": "/api/health",
+      "composeFile": "poppy-verification-LAB/docker-compose.yml",
+      "composeOverlays": [],
+      "notes": "Fork of poppy-agent-tester-LAB. Host-run: ./scripts/run.sh (port 7820). Docker: HOST_PORT=7820 docker compose up --build -d (published on 127.0.0.1 only); starts in Mock, and Real needs PVL_AGENT_BASE_URL (see docs/setup.md). Mock opens no socket. Not a certification.",
+      "where": "installed"
+    }
+  ]
+}

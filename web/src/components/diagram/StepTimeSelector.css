@@ -1,0 +1,6 @@
+/* StepTimeSelector: step-time (playback dwell) dropdown. Layout only; the shared stylesheet gives the border.
+ * Class names keep the .dc-steptime* prefix. */
+
+.dc-steptime { display: inline-flex; align-items: center; gap: 0.35rem; }
+.dc-steptime-label { font-size: 0.75rem; font-weight: 600; color: var(--text); white-space: nowrap; }
+.dc-steptime-select { font-size: 0.78rem; padding: 0.25rem 0.5rem; cursor: pointer; }

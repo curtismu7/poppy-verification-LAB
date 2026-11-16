@@ -1,0 +1,17 @@
+/* DiagramControls toolbar: layout and sizes only; colours, borders and focus come from the shared stylesheet.
+ * Classes: .dc-* only; the app uses no legend or filter bar. */
+
+.dc-toolbar { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+
+.dc-zoom-btn { cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 0.2rem 0.45rem; border-radius: var(--radius-sm); }
+.dc-zoom-label { font-size: 0.8rem; font-weight: 600; color: var(--text); min-width: 2.8rem; text-align: center; }
+.dc-zoom-reset { font-size: 0.95rem; color: var(--muted); }
+.dc-divider { width: 1px; height: 1.2rem; background: var(--border); margin: 0 0.2rem; }
+
+.dc-step-label { font-size: 0.82rem; font-weight: 700; color: var(--status-info); background: var(--surface); border: 1px solid var(--border); border-radius: 5px; padding: 0.25rem 0.6rem; }
+.dc-step-label--paused { color: var(--status-warn); border-color: var(--status-warn); }
+
+.dc-ctrl-btn { padding: 0.25rem 0.7rem; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+
+/* Filled actions: accent with accent-contrast text. */
+.dc-ctrl-btn--simulate, .dc-ctrl-btn--next, .dc-ctrl-btn--pause, .dc-ctrl-btn--resume { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
