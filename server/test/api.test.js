@@ -216,6 +216,20 @@ test('RFC 9207: a redirect from another issuer is refused before any token reque
   } finally { seen.redirectIss = undefined; }
 });
 
+test('spec 4.2: a redirect without iss is refused even when the issuer does not advertise the parameter (PingFederate sent none until it was switched on)', async () => {
+  seen.redirectIss = null; // the fake issuer's metadata does NOT list authorization_response_iss_parameter_supported
+  try {
+    const before = seen.tokenForms.length;
+    const { cb } = await signedIn('r4b');
+    assert.match(cb.headers.get('location'), /signin=error/);
+    assert.equal(seen.tokenForms.length, before, 'no token request is made');
+    const st = await (await get('/api/state', 'r4b')).json();
+    assert.equal(st.signedIn, false);
+    assert.deepEqual(st.steps.find((x) => x.kind === 'return').request.iss, null, 'the missing iss is recorded');
+    assert.match(st.steps.find((x) => x.error === 'iss_mismatch').detail, /redirect iss missing/);
+  } finally { seen.redirectIss = undefined; }
+});
+
 test('RFC 9207: when the issuer says it always sends iss, a redirect without one is refused', async () => {
   seen.pfMetaOverride = { authorization_response_iss_parameter_supported: true }; seen.redirectIss = null;
   try {
@@ -551,7 +565,7 @@ test('PAR (RFC 9126): when the issuer lists the endpoint the agent pushes the re
     assert.match(cb.headers.get('location'), /signin=ok/);
     const st = await (await get('/api/state', 'par1')).json();
     assert.equal(st.signedIn, true);
-    assert.deepEqual(st.steps.map((s) => s.kind), ['discover', 'par', 'authorize', 'token']);
+    assert.deepEqual(st.steps.map((s) => s.kind), ['discover', 'par', 'authorize', 'return', 'token']);
     assert.equal(st.steps[1].response.status, 201);
   } finally { delete seen.pfMetaOverride; }
 });

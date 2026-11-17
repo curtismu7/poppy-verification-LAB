@@ -27,3 +27,17 @@ What this is: the Verify suite in Real mode against a live Company and issuer, f
 ## Limits
 
 One probe endpoint (`/poppy/api/v1/me`), signed out. Sign-in, refresh, revocation, PKCE, scope and MCP checks were not run against this Company; they need a person to sign in, which the Run it tab does.
+
+## Two sign-in checks, run by hand through a browser (2026-11-17)
+
+The suite cannot drive a real sign-in, so two of the 53 sign-in checks were run by following the Run it flow in Chrome: discover, push the request (PAR), sign in as the demo user on the PingFederate page, approve the consent, then make the signed call. PingFederate first needed a CIMD policy for this lab's client URL (created from the older lab's policy: same token manager, PKCE required). Before that policy, the push was refused with `invalid_client`.
+
+| Check | Result | Evidence |
+|---|---|---|
+| `a-signed-in`: a signed-in call with a matching Session succeeds | **pass** | The Company answered HTTP 200 with `state: signed_in` and the scope `accounts:read`. The Session header was `poppy-session+jwt` / ES256 with `ath`, and its `sub` was the agent's own User ID, not the token's `sub`. The access token's `client_id` was this lab's client URL. |
+| `o-iss-success`: the authorization response carries `iss` (RFC 9207) | **fail, then pass** | First, PingFederate's redirect carried a `code` and **no `iss`** (two sign-ins), and its metadata did not advertise `authorization_response_iss_parameter_supported`. Spec 4.2 asks for `iss` on every authorization response. PingFederate 13.1 has a setting for it, `includeIssuerInAuthorizationResponse`, which was off. After it was switched on (one field changed, read back), the metadata advertised the parameter and the redirect carried `iss` equal to the issuer, character for character. The lab records the redirect it receives (the `iss` value, whether a code or an error came back, never the code). |
+
+**What changed because of it:**
+- PingFederate: `includeIssuerInAuthorizationResponse` is now on. It adds `iss` to every authorization response of that server, for every client, which RFC 9207 clients handle.
+- The agent: it now refuses a redirect with no `iss`, always (spec 4.2: it must check `iss` matches, which a missing one cannot do). Before, it only refused a wrong `iss`, or a missing one when the issuer said it always sends one. A test pins it: with a fake issuer that sends none and does not advertise the parameter, no token request is made.
+- Result with both changes: a third sign-in succeeded, the signed call returned HTTP 200 again, and `o-iss-success` passes.
