@@ -222,7 +222,7 @@ export async function runSuite(target, { only } = {}) {
   const driver = target.driver ?? null;
   const ctx = { origin, kit, poppy, prm, as, issuer, companyId, errors, probePath, probeUrl, send, sendRaw, mcpUrl: driver?.mcpUrl, signedInPath: driver?.signedInPath ?? '/poppy/api/v1/me', sessionClaimsEndpoint: target.sessionClaimsEndpoint === true };
   if (driver) {
-    Object.assign(ctx, driver.methods({ origin, kit, issuer }));
+    Object.assign(ctx, driver.methods({ origin, kit, issuer, as, fetch: fetchImpl }));
     // A negative authorization check, with its control: the SAME request shape for the main client must reach the consent step
     // first, and the faulty one must be refused for the reason the check names, not for any other reason.
     ctx.authorizeNegative = async (variant, isRightRefusal, why) => {
@@ -243,7 +243,8 @@ export async function runSuite(target, { only } = {}) {
     await new Promise((res) => setImmediate(res)); // let the event loop serve other requests between checks: a run is CPU work
     let r;
     const needsProbe = chk.needs === 'probe' || chk.needs === 'session';
-    const missing = chk.needs === 'poppy' && !poppy ? 'poppy.json could not be read' : chk.needs === 'prm' && !prm ? 'protected resource metadata could not be read' : chk.needs === 'as' && !as ? `issuer metadata could not be read${errors.as ? ` (${errors.as})` : ''}` : needsProbe && !target.probeReady ? (target.probeReason ?? 'no probe') : chk.needs === 'signin' && !driver ? 'needs a person to sign in: use Real mode on the Run it tab, then re-run (this suite drives sign-in itself only against the reference issuer)' : null;
+    const unsupported = driver?.unsupported?.(chk.id);
+    const missing = unsupported ? unsupported : chk.needs === 'poppy' && !poppy ? 'poppy.json could not be read' : chk.needs === 'prm' && !prm ? 'protected resource metadata could not be read' : chk.needs === 'as' && !as ? `issuer metadata could not be read${errors.as ? ` (${errors.as})` : ''}` : needsProbe && !target.probeReady ? (target.probeReason ?? 'no probe') : chk.needs === 'signin' && !driver ? 'needs a person to sign in: use Real mode on the Run it tab, then re-run (this suite drives sign-in itself only against the reference issuer)' : null;
     if (missing) r = skip(missing);
     else if (chk.needs === 'session' && !ctx.sessionClaimsEndpoint && !(await sessionAware())) r = skip(`the probe endpoint ${probePath} does not verify Poppy-Session (see s-verifies); spec 5.3 lets it when it uses no Session claims. Choose a probe path that relies on them`);
     else {

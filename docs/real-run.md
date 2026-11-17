@@ -41,3 +41,19 @@ The suite cannot drive a real sign-in, so two of the 53 sign-in checks were run 
 - PingFederate: `includeIssuerInAuthorizationResponse` is now on. It adds `iss` to every authorization response of that server, for every client, which RFC 9207 clients handle.
 - The agent: it now refuses a redirect with no `iss`, always (spec 4.2: it must check `iss` matches, which a missing one cannot do). Before, it only refused a wrong `iss`, or a missing one when the issuer said it always sends one. A test pins it: with a fake issuer that sends none and does not advertise the parameter, no token request is made.
 - Result with both changes: a third sign-in succeeded, the signed call returned HTTP 200 again, and `o-iss-success` passes.
+
+## Headless sign-in (no browser): the 51 sign-in checks against the live issuer
+
+The Verify suite can now sign in to the issuer's login and consent pages by itself — an opt-in driver, on only when the server has `PVL_SIGNIN_USER` and `PVL_SIGNIN_PASSWORD` and the run asks for it (`signIn: true`). It handles the PingFederate HTML form adapter (login form, then the "Request for Approval" consent form with its `pf.oauth.authz.consent` hidden field) by parsing the pages, not scripting a browser. The credentials are read from the environment only, POSTed only to the typed issuer, and never appear in the report, the steps, the session log or an API response.
+
+How it is tested in CI: the same in-process reference issuer that powers Mock mode is fronted by fake PingFederate-style pages, and every sign-in check must give the same verdict as under the Mock driver; variant-client checks (CIMD), PS384 and second-agent checks skip with their reasons, and three mutants of the driver itself (wrong verifier, dropped iss, fake token success) are caught by the suite.
+
+Checks that still skip in Real mode, with the reason in the report:
+
+- the CIMD variant-client checks (`o-cimd-*`, `o-redirect-exact`): the issuer would need a CIMD policy per variant URL, and the agent serves only its own document;
+- `o-refresh-other-client`, `o-revoke-other-client`, `a-token-client`, `a-mcp-token-client`: they need a second agent identity;
+- `s-ps384`, `o-assertion-ps384`: the real agent publishes an ES256 key only.
+
+The scopes the checks use are mapped at run time (`scopes: { read, other, escalate }`), so no Company-specific scope name is baked into the repo.
+
+*Live result with the 7822 hand-run instance: pending (run after merge; recorded here per the handoff).*

@@ -29,6 +29,9 @@ services:
       PVL_DEMO_P1_ISSUER: ${PVL_DEMO_P1_ISSUER:-}
       PVL_DEMO_SCOPE: ${PVL_DEMO_SCOPE:-}
       PVL_DEMO_LOGIN_HINT: ${PVL_DEMO_LOGIN_HINT:-}
+      # Headless sign-in for the Real Verify suite (optional, never a default, never returned or logged).
+      PVL_SIGNIN_USER: ${PVL_SIGNIN_USER:-}
+      PVL_SIGNIN_PASSWORD: ${PVL_SIGNIN_PASSWORD:-}
       # Optional live Claude agent behind the Agent chat tab (empty = guided script). Never returned or logged.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       PVL_CHAT_MODEL: ${PVL_CHAT_MODEL:-}

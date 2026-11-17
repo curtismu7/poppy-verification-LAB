@@ -73,5 +73,6 @@ See [docs/safety.md](docs/safety.md). Loopback bind, same-origin writes, Mock op
 - Not run against a real tenant by this fork.
 - `prompt=consent` (spec 4.2) is sent only when the issuer's metadata lists it in `prompt_values_supported`; whether PingFederate shows consent without it is UNVERIFIED (discovery shows a warning).
 - Real mode contacts exactly the Company and issuer you type (host and port), including loopback or private addresses, because a local run against your own PingFederate needs that. It is a loopback-only app with a Host check; do not expose it.
+- Headless sign-in (Verify tab, Real mode, optional): with `PVL_SIGNIN_USER` / `PVL_SIGNIN_PASSWORD` on the server, the suite signs in to the issuer's login and consent pages itself and runs the sign-in, token, refresh, revoke and MCP checks with no browser. The credentials go only to the issuer and never into any report, step or log; see docs/setup.md.
 - The Mock/Real mode is per workspace (the browser's `X-Workspace`), so one visitor switching does not change another's.
 - Spec sections 10.7, 10.8 and 11 were summarised, not read verbatim, when the checks were written; the Operations extension was not read.
