@@ -26,7 +26,7 @@ function mockFetch({ report = REPORT(false), consent } = {}) {
     const ok = (j, status = 200) => ({ ok: status < 400, status, json: async () => j });
     if (url === "/api/verify/checks") return ok(CATALOG);
     if (url === "/api/verify/run") return ok(report);
-    if (String(url).startsWith("/api/mock/consent") && init.method === "POST") return ok({ redirect: "http://127.0.0.1:7820/cb?code=c&state=s&iss=i" });
+    if (String(url).startsWith("/api/mock/consent") && init.method === "POST") return ok({ redirect: "http://127.0.0.1:7821/cb?code=c&state=s&iss=i" });
     if (String(url).startsWith("/api/mock/consent")) return consent ? ok(consent) : ok({ error: "unknown_consent" }, 404);
     return ok({});
   }));
@@ -49,6 +49,13 @@ describe("Verify tab", () => {
     expect(await screen.findByTestId("verify-summary")).toHaveTextContent("No check failed. 3 passed");
     expect(posted[0]).toEqual(["/api/verify/run", { defects: [] }]);
     expect(screen.getByTestId("check-as-protected-resources")).toHaveAttribute("data-status", "pass");
+  });
+  it("a report with skipped checks says no check failed BUT that some did not run", async () => {
+    mockFetch({ report: { ...REPORT(false), summary: { pass: 2, fail: 0, warn: 0, skip: 1, total: 3 } } });
+    render(<VerifyPanel info={{ source: "mock" }} />);
+    await screen.findByTestId("check-o-pkce");
+    fireEvent.click(screen.getByTestId("verify-run"));
+    expect(await screen.findByTestId("verify-summary")).toHaveTextContent("No check failed, but 1 did not run.");
   });
   it("Mock: a defect that is switched on is sent, and the check that names it shows Fail with its reason", async () => {
     mockFetch({ report: REPORT(true) });

@@ -48,7 +48,7 @@ This lab checks the Personal Agent Protocol 1.0 behaviour it has a check for, an
 
 ## Verify a Company
 
-Open the Verify tab and run the suite. In Mock it passes all 63 checks. Switch on a defect, for example one that leaves protected_resources out of the issuer metadata, run it again, and the check that names that rule fails with the reason. In Real it reads the Company and issuer you type and probes the Poppy-Session rules with this agent's own key: wrong audience, wrong URL, a stale time, a replay, no delegation, a 48 hour delegation, alg none.
+Open the Verify tab and run the suite. In Mock it passes all 107 checks. Switch on a defect, for example one that leaves protected_resources out of the issuer metadata, run it again, and the check that names that rule fails with the reason. In Real it reads the Company and issuer you type and probes the Poppy-Session rules with this agent's own key: wrong audience, wrong URL, a stale time, a replay, no delegation, a 48 hour delegation, alg none.
 
 ---
 

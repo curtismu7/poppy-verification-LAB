@@ -58,11 +58,11 @@ export default function VerifyPanel({ info }) {
           </div>
         ) : (
           <div className="rp-controls" data-testid="verify-real">
-            <p className="rp-controls__main"><b>Real:</b> reads the Company and the issuer you name and sends Session probes with this agent's own key. Only those two hosts are contacted. Checks that need a person to sign in are skipped here; use the Run it tab for those.</p>
+            <p className="rp-controls__main"><b>Real:</b> reads the Company and the issuer you name and sends Session probes with this agent's own key. Only those two hosts are contacted. Checks that need a person to sign in are skipped here, and the verdict says so; use the Run it tab for those. If the probe endpoint does not verify Poppy-Session, the Session checks are skipped with the reason.</p>
             <div className="rp-fields">
               <label>Company origin<input type="text" value={origin} onChange={(e) => setOrigin(e.target.value)} placeholder="https://company.example" data-testid="verify-origin" /></label>
               <label>Issuer<input type="text" value={issuer} onChange={(e) => setIssuer(e.target.value)} placeholder="https://auth.company.example" data-testid="verify-issuer" /></label>
-              <label>Probe path<input type="text" value={probePath} onChange={(e) => setProbePath(e.target.value)} data-testid="verify-path" /></label>
+              <label>Probe path (an endpoint that relies on Poppy-Session claims)<input type="text" value={probePath} onChange={(e) => setProbePath(e.target.value)} data-testid="verify-path" /></label>
             </div>
           </div>
         )}
@@ -74,11 +74,11 @@ export default function VerifyPanel({ info }) {
         {s && (
           <div data-testid="verify-summary">
             <p className={`vf-verdict ${report.conformant ? "vf-verdict--ok" : "vf-verdict--bad"}`} role="status">
-              {report.conformant ? "No check failed." : `${s.fail} check${s.fail === 1 ? "" : "s"} failed.`} {s.pass} passed, {s.warn} warning{s.warn === 1 ? "" : "s"}, {s.skip} skipped of {s.total}.
+              {report.conformant ? (s.skip > 0 ? `No check failed, but ${s.skip} did not run.` : "No check failed.") : `${s.fail} check${s.fail === 1 ? "" : "s"} failed.`} {s.pass} passed, {s.warn} warning{s.warn === 1 ? "" : "s"}, {s.skip} skipped of {s.total}.
               {report.mode === "mock" && report.defects?.length ? ` Defects on: ${report.defects.join(", ")}.` : ""}
             </p>
             <div className="vf-filter" role="group" aria-label="Show">
-              {["all", "problems", "fail", "pass", "skip"].map((f) => <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)}>{f === "all" ? "All" : f === "problems" ? "Problems" : LABEL[f]}</button>)}
+              {["all", "problems", "fail", "pass", "skip"].map((f) => <button key={f} type="button" className={filter === f ? "primary" : undefined} aria-pressed={filter === f} onClick={() => setFilter(f)}>{f === "all" ? "All" : f === "problems" ? "Problems" : LABEL[f]}</button>)}
             </div>
           </div>
         )}

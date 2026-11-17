@@ -27,7 +27,7 @@ test('docker-compose.yml publishes only on 127.0.0.1', () => {
 });
 
 test('the parser flags an unbound or wildcard publish', () => {
-  for (const bad of ['- "7820:7820"', '- "0.0.0.0:7820:7820"', '- 7820', '- "::1:7820:7820"']) {
+  for (const bad of ['- "7821:7821"', '- "0.0.0.0:7821:7821"', '- 7821', '- "::1:7821:7821"']) {
     const ports = publishedPorts(`services:\n  a:\n    ports:\n      ${bad}\n`);
     assert.equal(ports.length, 1);
     assert.doesNotMatch(ports[0], /^127\.0\.0\.1:/);
@@ -40,7 +40,7 @@ test('compose default host port and container port are allowed ports and agree',
   assert.equal(portProblem(host), null);
   const container = Number(/\}:(\d+)"/.exec(compose)[1]);
   assert.equal(portProblem(container), null);
-  assert.equal(container, 7820);
+  assert.equal(container, 7821);
   assert.match(compose, /restart: unless-stopped/);
   assert.match(here('Dockerfile'), /^USER node$/m);
 });

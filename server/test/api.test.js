@@ -463,7 +463,7 @@ test('a typed host\'s permit is renewed when the sign-in reaches the token endpo
   }
 });
 
-test('rule 19: POST /api/mode switches mock↔real at runtime; exact body; 409 without settings; hosted gates follow the holder', async () => {
+test('rule 19 and 13: POST /api/mode switches mock↔real at runtime for ONE workspace; exact body; 409 without settings', async () => {
   const live = createApp({ hosted: false, agent: agentKey, baseUrl: `http://127.0.0.1:${agentPort}`, sessions: createSessions(), health: createHealth({ runChecks: async () => [], intervalMs: 3_600_000 }) });
   const s = await listen(live);
   try {
@@ -476,6 +476,16 @@ test('rule 19: POST /api/mode switches mock↔real at runtime; exact body; 409 w
     assert.equal((await info()).source, 'real'); assert.equal((await info()).hosted, false); assert.equal((await info()).simulated, false);
     const toMock = await modePost({ source: 'mock' }); assert.equal(toMock.status, 200);
     assert.equal((await info()).source, 'mock'); assert.equal((await info()).simulated, true);
+    // Per workspace: one visitor going Real never changes what another sees (the review found the switch was global).
+    const ws = (id) => ({ 'content-type': 'application/json', 'x-workspace': id });
+    await fetch(`${o}/api/mode`, { method: 'POST', headers: ws('ws-a'), body: JSON.stringify({ source: 'real' }) });
+    const read = async (id) => (await (await fetch(`${o}/api/info`, { headers: ws(id) })).json()).source;
+    assert.equal(await read('ws-a'), 'real');
+    assert.equal(await read('ws-b'), 'real', 'ws-b has not chosen: it follows the default, which is Real for this app');
+    await fetch(`${o}/api/mode`, { method: 'POST', headers: ws('ws-b'), body: JSON.stringify({ source: 'mock' }) });
+    assert.equal(await read('ws-b'), 'mock');
+    assert.equal(await read('ws-a'), 'real', 'ws-a is unchanged by ws-b');
+    assert.equal((await fetch(`${o}/api/mode`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-workspace': 'BAD ID' }, body: JSON.stringify({ source: 'mock' }) })).status, 400);
   } finally { s.close(); }
   // Hosted build: no agent, no base URL → Real is 409 and the build stays hosted (fails closed).
   const hosted = createApp({ agent: null, hosted: true, baseUrl: '', health: createHealth({ runChecks: async () => [], intervalMs: 3_600_000 }) });
@@ -489,6 +499,30 @@ test('rule 19: POST /api/mode switches mock↔real at runtime; exact body; 409 w
     assert.equal(hinfo.realAvailable, false);
     assert.match(hinfo.realReason, /Real mode is not available/);
   } finally { hs.close(); }
+});
+
+test('prompt=consent (spec 4.2) is sent only when the issuer lists it in prompt_values_supported', async () => {
+  const run = async (ws) => {
+    const d = await post('/api/discover', { origin: originOf(company), issuer: originOf(pf) }, ws);
+    assert.equal(d.status, 200);
+    const a = await post('/api/authorize', { scope: 'accounts:read' }, ws);
+    assert.equal(a.status, 200);
+    const url = new URL((await a.json()).url);
+    await fetch(url, { redirect: 'manual' });
+    return seen.authorizeQuery;
+  };
+  assert.equal((await run('pc1')).prompt, undefined, 'not listed: not sent');
+  seen.pfMetaOverride = { prompt_values_supported: ['login', 'consent'] };
+  try {
+    assert.equal((await run('pc2')).prompt, 'consent');
+    const d = await (await post('/api/discover', { origin: originOf(company), issuer: originOf(pf) }, 'pc3')).json();
+    assert.equal(d.checks.find((c) => c.id === 'prompt_consent').ok, true);
+  } finally { seen.pfMetaOverride = undefined; }
+  const d0 = await (await post('/api/discover', { origin: originOf(company), issuer: originOf(pf) }, 'pc4')).json();
+  const c0 = d0.checks.find((c) => c.id === 'prompt_consent');
+  assert.equal(c0.ok, false);
+  assert.equal(c0.level, 'warn', 'a warning, never a stop: whether the issuer shows consent anyway is UNVERIFIED');
+  assert.match(c0.note, /UNVERIFIED/);
 });
 
 test('PAR (RFC 9126): when the issuer lists the endpoint the agent pushes the request with its client assertion and the browser URL carries only client_id and request_uri', async () => {

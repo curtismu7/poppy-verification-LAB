@@ -12,7 +12,7 @@ let failed = 0;
 const report = (level, name, detail) => { if (level === 'fail') failed++; console.log(`${level.toUpperCase().padEnd(4)}  ${name}: ${detail}`); };
 for (const c of await runChecks()) report(c.level, c.id, c.detail);
 
-const port = Number(process.env.PORT) || 7820;
+const port = Number(process.env.PORT) || 7821;
 await new Promise((resolve) => {
   const s = net.createServer();
   s.once('error', (e) => { report('fail', 'port-free', `${port} is not free (${e.code}). Set PORT in .env to a free port in 7800-7999`); resolve(); });

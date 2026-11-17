@@ -21,6 +21,15 @@ export function createIssuer({ defects = new Set(), now = nowSeconds, fetchImpl,
   const refresh = new Map(); // token -> { clientId, scopes, account, revoked }
   const seenJti = new Map(); // client assertion jti -> expiry
   const has = (d) => defects.has(d);
+  // Every store is bounded: expired entries go on each request, and a hard cap drops the oldest. A long-lived workspace cannot grow without limit.
+  const housekeeping = () => {
+    const t = now();
+    for (const [k, v] of codes) if (v.expires < t) codes.delete(k);
+    for (const [k, v] of parStore) if (v.expires < t) parStore.delete(k);
+    for (const [k, v] of pendingAuth) if (v.expires < t) pendingAuth.delete(k);
+    for (const [k, e] of seenJti) if (e < t) seenJti.delete(k);
+    for (const [m, cap] of [[codes, 2000], [parStore, 2000], [pendingAuth, 500], [seenJti, 5000], [refresh, 5000]]) while (m.size > cap) m.delete(m.keys().next().value);
+  };
 
   const metadata = () => {
     const m = {
@@ -36,6 +45,7 @@ export function createIssuer({ defects = new Set(), now = nowSeconds, fetchImpl,
       token_endpoint_auth_methods_supported: ['private_key_jwt'],
       token_endpoint_auth_signing_alg_values_supported: ['ES256', 'PS384'],
       authorization_response_iss_parameter_supported: true,
+      prompt_values_supported: ['consent'],
       scopes_supported: Object.keys(SCOPES),
       protected_resources: [COMPANY_ORIGIN, MCP_URL],
       revocation_endpoint: `${ISSUER}/revoke`,
@@ -63,14 +73,22 @@ export function createIssuer({ defects = new Set(), now = nowSeconds, fetchImpl,
     if (!Number.isFinite(a.payload.iat) || !Number.isFinite(a.payload.exp)) throw new OAuthError('invalid_client', 'assertion needs iat and exp', 401);
     if (a.payload.exp <= t - 60 || a.payload.iat > t + 60) throw new OAuthError('invalid_client', 'assertion is expired or from the future', 401);
     if (a.payload.exp - a.payload.iat > 300 && !has('assertion_long_lifetime')) throw new OAuthError('invalid_client', 'assertion lifetime exceeds 5 minutes', 401);
-    if (typeof a.payload.jti !== 'string' || a.payload.jti.length < 8) throw new OAuthError('invalid_client', 'assertion needs a unique jti', 401);
+    if (typeof a.payload.jti !== 'string' || !a.payload.jti) throw new OAuthError('invalid_client', 'assertion needs a unique jti', 401);
     for (const [j, e] of seenJti) if (e < t) seenJti.delete(j);
     if (seenJti.has(a.payload.jti)) throw new OAuthError('invalid_client', 'assertion jti was already used', 401);
     seenJti.set(a.payload.jti, a.payload.exp);
     return client;
   }
 
-  const redirectMatches = (client, uri) => (client.meta.redirect_uris ?? []).some((r) => (has('loose_redirect_uri') ? uri.startsWith(r) : r === uri || (new URL(r).hostname === '127.0.0.1' && new URL(uri).hostname === '127.0.0.1' && r.split(':').slice(0, 2).join(':') === uri.split(':').slice(0, 2).join(':') && new URL(r).pathname === new URL(uri).pathname)));
+  // Spec 4.2: redirect_uri must match exactly, except the port of a loopback redirect (RFC 8252 7.3), for 127.0.0.1, [::1] or localhost.
+  const LOOPBACK = new Set(['127.0.0.1', '[::1]', 'localhost']);
+  const sameModuloLoopbackPort = (registered, asked) => {
+    let r; let q;
+    try { r = new URL(registered); q = new URL(asked); } catch { return false; }
+    if (registered === asked) return true;
+    return LOOPBACK.has(r.hostname) && r.protocol === q.protocol && r.hostname === q.hostname && r.pathname === q.pathname && r.search === q.search;
+  };
+  const redirectMatches = (client, uri) => (client.meta.redirect_uris ?? []).some((r) => (has('loose_redirect_uri') ? uri.startsWith(r) : sameModuloLoopbackPort(r, uri)));
 
   /** Pushed authorization request (RFC 9126): the agent authenticates and parks its parameters. */
   async function par(form) {
@@ -95,6 +113,7 @@ export function createIssuer({ defects = new Set(), now = nowSeconds, fetchImpl,
    * error that goes back to the agent, always with iss) or { kind: 'consent', id, ... } for the page to show.
    */
   async function startAuthorization(query) {
+    housekeeping();
     let p = { ...query };
     try {
       if (p.request_uri) {
@@ -209,6 +228,7 @@ export function createIssuer({ defects = new Set(), now = nowSeconds, fetchImpl,
 
   // The in-process "network" for the issuer host. The authorize endpoint is a browser page, served by the app, not here.
   async function handle(url, init = {}) {
+    housekeeping();
     const u = new URL(url);
     const method = String(init.method || 'GET').toUpperCase();
     try {

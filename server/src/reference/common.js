@@ -64,14 +64,27 @@ export function headerGetter(init) {
   return (k) => lower[k.toLowerCase()];
 }
 
-/** Hosts a Company must never be made to connect to for a URL the other party supplied (spec 3: loopback, private, link-local). */
+/**
+ * Hosts a Company must never be made to connect to for a URL the other party supplied (spec 3: loopback, private, link-local).
+ * Covers IPv4, IPv6 (loopback, unique-local fc00::/7, link-local fe80::/10) and IPv4-mapped IPv6 in either spelling. A host NAME is
+ * not resolved here; a real Company must also check what the name resolves to.
+ */
 export function isBlockedAddress(hostname) {
-  const h = String(hostname).toLowerCase().replace(/^\[|\]$/g, '');
-  if (h === 'localhost' || h.endsWith('.localhost') || h === '::1' || h === '::') return true;
+  const h = String(hostname).toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
+  if (h === 'localhost' || h.endsWith('.localhost')) return true;
+  const v4 = (a, b) => a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127);
   const m = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(h);
-  if (!m) return false;
-  const [a, b] = [Number(m[1]), Number(m[2])];
-  return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+  if (m) return v4(Number(m[1]), Number(m[2]));
+  if (!h.includes(':')) return false;
+  if (h === '::' || h === '::1') return true;
+  const mapped = /^::ffff:(?:(\d+)\.(\d+)\.(\d+)\.(\d+)|([0-9a-f]{1,4}):([0-9a-f]{1,4}))$/.exec(h);
+  if (mapped) {
+    if (mapped[1] !== undefined) return v4(Number(mapped[1]), Number(mapped[2]));
+    const hi = parseInt(mapped[5], 16);
+    return v4(hi >> 8, hi & 255);
+  }
+  const first = parseInt(h.split(':')[0] || '0', 16);
+  return (first & 0xfe00) === 0xfc00 || (first & 0xffc0) === 0xfe80;
 }
 
 export function formBody(text) { return Object.fromEntries(new URLSearchParams(String(text ?? ''))); }

@@ -19,7 +19,7 @@ export function buildPack() {
     id: 'poppy-verification',
     title: 'Poppy Verification',
     version,
-    demo: { id: 'poppy-verification', name: 'Poppy Verification', catalog: 'D100', baseUrl: 'http://localhost:7820', doctor: '/api/health', tags: ['agent', 'poppy', 'pingfederate', 'cimd', 'conformance'] },
+    demo: { id: 'poppy-verification', name: 'Poppy Verification', catalog: 'D100', baseUrl: 'http://localhost:7821', doctor: '/api/health', tags: ['agent', 'poppy', 'pingfederate', 'cimd', 'conformance'] },
     glossary: [
       { id: 'cimd', term: 'Client metadata document (CIMD)', definition: 'A client_id that is a URL. The authorization server fetches that URL to learn the client\'s name, redirect URIs and keys, so no one has to register the client first.', aliases: ['client id metadata document'] },
       { id: 'poppy-json', term: 'poppy.json', definition: 'A public document at /.well-known/poppy.json where a Company lists its issuer, scopes (each with a scope_hint) and APIs for personal agents.', aliases: ['/.well-known/poppy.json'] },
