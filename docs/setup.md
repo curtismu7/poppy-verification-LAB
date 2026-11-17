@@ -17,6 +17,10 @@ Then open the page on loopback, type the Company origin and the issuer, and go t
 
 The Company's authorization server is the shared PingFederate, and it advertises 55 scopes that belong to several demos. This tester asks only for `accounts:read` (the default when the Company offers it). The other 54 are not Poppy offerings. Narrowing the advertised set was considered and not done: PingFederate has no scope group or virtual-issuer setting that hides scopes from its metadata, and other demos read the same metadata. The decision (2026-10-30, owner) is to keep PingFederate and document the shared set.
 
+## Issuer in the authorization response (RFC 9207, spec 4.2)
+
+The agent refuses a sign-in redirect that carries no `iss`, or an `iss` that is not the issuer it started with. PingFederate sends `iss` only when **Authorization Server Settings, "Include issuer in authorization response"** is on (admin API: `oauth/authServerSettings`, field `includeIssuerInAuthorizationResponse`; checked on 13.1.3, where it was off). With it off, the redirect has a `code` and no `iss`, and this lab shows `iss_mismatch` with `redirect iss missing`. With it on, the issuer metadata also advertises `authorization_response_iss_parameter_supported: true`.
+
 ## The protected_resources field
 
 Spec 3.2 requires the issuer's metadata (RFC 8414) to list `https://{company domain}` under `protected_resources`, with no path or trailing slash, and an agent must check it. PingFederate publishes no such field (no setting found; the 13.1 documentation index shows none, which is not conclusive). Put a small metadata layer in front of the issuer that adds it, keeping the issuer string unchanged, or ask for the setting. Until then a bare PingFederate fails the Run it discovery by design, and the Verify tab's `as-protected-resources` check shows why.
