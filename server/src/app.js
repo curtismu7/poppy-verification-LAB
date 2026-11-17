@@ -28,6 +28,7 @@ import { chatTurn, MAX_TEXT } from './chatAgent.js';
 import { createReference, DEFECTS, COMPANY_ORIGIN, ISSUER } from './reference/index.js';
 import { createAgentKit } from './verify/agentKit.js';
 import { createReferenceDriver } from './verify/driver.js';
+import { createRealDriver } from './verify/realDriver.js';
 import { runSuite, CHECK_LIST, SPEC_URL } from './verify/suite.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -417,7 +418,7 @@ export function createApp({ configFile = CONFIG, agent, health = createHealth({ 
   // GET /api/verify/checks lists the checks and the defects the Mock reference can be given. POST /api/verify/run runs them:
   // Mock = against a fresh in-process reference (optionally with defects, to see the suite fail); Real = against the Company and
   // issuer you typed, with this agent's real identity, Session probes only (sign-in needs a person: use the Run it tab).
-  api.get('/verify/checks', (_req, res) => { res.set('Cache-Control', 'no-store'); res.json({ spec: SPEC_URL, checks: CHECK_LIST, defects: DEFECTS, reference: { origin: COMPANY_ORIGIN, issuer: ISSUER } }); });
+  api.get('/verify/checks', (_req, res) => { res.set('Cache-Control', 'no-store'); res.json({ spec: SPEC_URL, checks: CHECK_LIST, defects: DEFECTS, reference: { origin: COMPANY_ORIGIN, issuer: ISSUER }, signin: { configured: Boolean(process.env.PVL_SIGNIN_USER && process.env.PVL_SIGNIN_PASSWORD) } }); });
   // Each run does a few hundred signature operations, so a burst could starve the event loop: at most 3 run at once.
   let verifyInFlight = 0;
   api.post('/verify/run', live(async (ws, req, res) => {
@@ -441,8 +442,14 @@ export function createApp({ configFile = CONFIG, agent, health = createHealth({ 
     const issuer = parseOrigin(b.issuer);
     const probePath = b.probePath ?? '/poppy/api/v1/me';
     if (!safePath(probePath)) return res.status(400).json({ error: 'bad_path' });
+    // The MCP resource, when one is given for the MCP checks: an https URL (spec 4.5), typed too, so the guarded fetch allows it.
+    let mcpUrl;
+    if (b.mcpUrl !== undefined) {
+      if (typeof b.mcpUrl !== 'string') return res.status(400).json({ error: 'bad_mcp_url' });
+      try { const mu = new URL(b.mcpUrl); if (mu.protocol !== 'https:') throw new Error(); mcpUrl = mu.href; } catch { return res.status(400).json({ error: 'bad_mcp_url', message: 'mcpUrl must be an https URL' }); }
+    }
     // Only the two typed hosts are reachable: a poppy.json that names another issuer cannot make this process call it.
-    const allowed = new Set([new URL(origin).host, new URL(issuer).host]); // host:port, so another port of the same host is not contacted
+    const allowed = new Set([new URL(origin).host, new URL(issuer).host, ...(mcpUrl ? [new URL(mcpUrl).host] : [])]); // host:port, so another port of the same host is not contacted
     const guarded = async (url, init = {}) => {
       const u = new URL(url);
       if (!allowed.has(u.host)) throw new DiscoverError('host_not_typed', `${u.host} is not the Company or the issuer you typed; not contacted`);
@@ -452,8 +459,17 @@ export function createApp({ configFile = CONFIG, agent, health = createHealth({ 
     };
     const me = identityOf(sessions.get(ws), ws);
     const kit = createAgentKit({ main: { clientId: me.clientId, privateKey: me.privateKey, publicJwk: agent.publicJwk, kid: me.kid }, redirectUri: me.redirectUri, withSecondAgent: false });
-    const report = await runSuiteImpl({ origin, fetch: guarded, kit, probePath, probeReady: true });
-    sessions.log(ws, { kind: 'verify', response: { mode: 'real', origin, summary: report.summary } });
+    // Opt-in headless sign-in (Real only): the driver is on when the request asks for it (signIn: true), the credentials are
+    // configured in the environment, and the issuer metadata was readable. The credentials live in createRealDriver's closure only.
+    const creds = { user: process.env.PVL_SIGNIN_USER, password: process.env.PVL_SIGNIN_PASSWORD };
+    const scopes = b.scopes && typeof b.scopes === 'object' && !Array.isArray(b.scopes) ? b.scopes : undefined;
+    const badScopes = scopes && (!Object.keys(scopes).every((k) => ['read', 'other', 'escalate'].includes(k)) || !['read', 'other', 'escalate'].every((k) => scopes[k] === undefined || (typeof scopes[k] === 'string' && SCOPE_RE.test(scopes[k]))));
+    if (badScopes) return res.status(400).json({ error: 'bad_scopes', message: 'scopes must be { read, other, escalate }, each a space-separated scope string' });
+    const wantsSignin = b.signIn === true;
+    if (wantsSignin && (!creds.user || !creds.password)) return res.status(400).json({ error: 'signin_unconfigured', message: 'signIn needs PVL_SIGNIN_USER and PVL_SIGNIN_PASSWORD configured on the server' });
+    const driver = wantsSignin ? createRealDriver({ redirectUri: me.redirectUri, user: creds.user, password: creds.password, scopes, mcpUrl }) : null;
+    const report = await runSuiteImpl({ origin, fetch: guarded, kit, probePath, probeReady: true, driver });
+    sessions.log(ws, { kind: 'verify', response: { mode: 'real', origin, summary: report.summary, signIn: Boolean(driver) } });
     return res.json({ mode: 'real', ...report });
   };
 

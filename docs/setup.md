@@ -13,6 +13,15 @@ Mock needs no setup. For Real you need three things: an issuer (PingFederate bel
 
 Then open the page on loopback, type the Company origin and the issuer, and go through the three steps.
 
+## Headless sign-in for the Verify suite (optional)
+
+By default the Verify suite's sign-in checks skip in Real mode: a person has to sign in. With two environment variables the suite can sign in by itself, with no browser, and run all 51 sign-in, token, refresh, revoke and MCP checks:
+
+- `PVL_SIGNIN_USER` and `PVL_SIGNIN_PASSWORD` — a test user at the issuer, whose login page is an HTML form (a PingFederate HTML form adapter is what this was built against; any other page shape stops with `unsupported sign-in page: <title>` and the check skips). Set them on the SERVER process only: never in the browser, never in a request body, never a default. They are sent only to the issuer you typed, and they never appear in the report, the steps, the session log or an API response. In the compose file they are pass-through (`${PVL_SIGNIN_USER:-}`); do not bake values into it.
+- On the Verify tab, tick **Sign in with the configured test user**, and fill the three scope fields, which map this suite's made-up scope names (`orders:read`, `orders:write`, `account:close`) onto what your Company actually uses: **read** (the scope the probe path needs), **other** (a scope that must NOT satisfy the probe path), **escalate** (one that is never granted). An unmapped scope makes that check skip rather than guess. `MCP resource URL` is optional and only needed if your Company serves an MCP endpoint.
+
+Checks that need a variant client document (the CIMD refusals), a second agent identity, or a PS384 key skip in Real mode with the reason: the lab serves one agent identity, its own ES256 key and its own client document only.
+
 ## Scopes the Company advertises
 
 The Company's authorization server is the shared PingFederate, and it advertises 55 scopes that belong to several demos. This tester asks only for `accounts:read` (the default when the Company offers it). The other 54 are not Poppy offerings. Narrowing the advertised set was considered and not done: PingFederate has no scope group or virtual-issuer setting that hides scopes from its metadata, and other demos read the same metadata. The decision (2026-10-30, owner) is to keep PingFederate and document the shared set.

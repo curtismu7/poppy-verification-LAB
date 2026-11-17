@@ -62,6 +62,12 @@ const MUTANTS = [
   ['the token endpoint accepts an unknown resource', I, "if (form.resource && !KNOWN_RESOURCES.has(form.resource)) throw new OAuthError('invalid_target', 'unknown resource');", '', ['o-resource-token']],
   ['token_endpoint is missing from the metadata', I, '      token_endpoint: `${ISSUER}/token`,\n', '', ['as-token-endpoint']],
   ['iss is left off the deny redirect', I, "return { url: redirectWith(a.params.redirect_uri, { error: 'access_denied', error_description: 'the user declined', state: a.params.state }, { isError: true }) };", "{ const u = new URL(a.params.redirect_uri); u.searchParams.set('error','access_denied'); u.searchParams.set('state', a.params.state); return { url: u.href }; }", ['o-iss-error']],
+  // The REAL driver's own behaviour: a mutant here is a way the headless sign-in could quietly lie to the suite. A lie that only
+  // turns a pass into a skip (e.g. consent always allow) is invisible BY DESIGN (the suite refuses to fail on a lost control), so
+  // the mutants below are lies the suite must catch.
+  ['the real driver never sends the wrong PKCE verifier (the wrong-verifier probe cannot run)', 'verify/realDriver.js', "code_verifier: wrongVerifier ? 'w'.repeat(43) : p.verifier", 'code_verifier: p.verifier', ['o-pkce']],
+  ['the real driver claims a token was issued when it was refused', 'verify/realDriver.js', 'if (t.res.status !== 200) return { ok: false, iss: r.iss, error: t.body?.error, reason: `${t.body?.error}: ${t.body?.error_description ?? \'\'}` };', 'if (t.res.status !== 200) return { ok: true, iss: r.iss, access_token: undefined, second: undefined };', ['o-pkce', 'o-redirect-token']],
+  ['the real driver drops the iss from the callback', 'verify/realDriver.js', "return { ok: true, code: q.get('code'), iss };", "return { ok: true, code: q.get('code'), iss: undefined };", ['o-iss-success']],
 ];
 
 let n = 0;
@@ -77,11 +83,41 @@ for (const [name, file, from, to, expect, kind] of MUTANTS) {
     const q = (p) => import(pathToFileURL(path.join(dir, 'src', p)).href);
     const { createReference } = await q('reference/index.js');
     const { createAgentKit } = await q('verify/agentKit.js');
-    const { createReferenceDriver } = await q('verify/driver.js');
     const { runSuite } = await q('verify/suite.js');
     const kit = createAgentKit();
     const ref = createReference({ hosts: kit.hosts() });
-    const r = await runSuite({ origin: 'https://company.example', fetch: ref.fetch, kit, probePath: '/poppy/api/v1/catalog', probeReady: true, sessionClaimsEndpoint: true, driver: createReferenceDriver(ref) });
+    let driver;
+    if (file === 'verify/realDriver.js') {
+      // The mutant is in the real driver: run it through the fake PF-style front (login + consent pages) built here like
+      // real-driver.test.js does, so the suite sees the driver's behaviour end to end.
+      const { createRealDriver } = await q('verify/realDriver.js');
+      const page = (t, b) => new Response(`<!doctype html><html><head><title>${t}</title></head><body>${b}</body></html>`, { status: 200, headers: { 'content-type': 'text/html' } });
+      const input = (ty, nm, v = '') => `<input type="${ty}" name="${nm}" value="${v}">`;
+      ref.addHost('auth.company.example', async (url, init = {}) => {
+        const u = new URL(url); const method = String(init.method || 'GET').toUpperCase();
+        const body = Object.fromEntries(new URLSearchParams(String(init.body ?? '')));
+        if (method === 'GET' && u.pathname === '/authorize') {
+          const s = await ref.issuer.startAuthorization(Object.fromEntries(u.searchParams));
+          if (s.kind === 'redirect') return new Response(null, { status: 302, headers: { location: s.url } });
+          if (s.kind === 'error') return page('Error', `<p>${s.error}: ${s.description}</p>`);
+          return page('Sign in', `<form method="post" action="/resume">${input('hidden', 'consentId', s.id)}${input('text', 'pf.username')}${input('password', 'pf.pass')}${input('hidden', 'pf.ok')}</form>`);
+        }
+        if (method === 'POST' && u.pathname === '/resume') {
+          if (!('pf.pass' in body)) {
+            const out = body['pf.oauth.authz.consent'] === 'deny' ? ref.issuer.deny(body.consentId) : ref.issuer.approve(body.consentId);
+            return new Response(null, { status: 302, headers: { location: out.url } });
+          }
+          const p = ref.issuer.pending(body.consentId);
+          if (!p) return page('Error', '<p>expired</p>');
+          return page('Request for Approval', `<form method="post" action="/resume">${input('hidden', 'consentId', body.consentId)}${input('hidden', 'cSRFToken', 'tok')}${input('checkbox', 'scope', p.scopes.map((s) => s.name).join(' '))}${input('hidden', 'pf.oauth.authz.consent')}</form>`);
+        }
+        return ref.issuer.handle(url, init);
+      });
+      driver = createRealDriver({ redirectUri: kit.redirectUri, user: 'u', password: 'p', scopes: { read: 'orders:read', other: 'orders:write', escalate: 'account:close' }, mcpUrl: 'https://company.example/mcp' });
+    } else {
+      driver = (await q('verify/driver.js')).createReferenceDriver(ref);
+    }
+    const r = await runSuite({ origin: 'https://company.example', fetch: ref.fetch, kit, probePath: '/poppy/api/v1/catalog', probeReady: true, sessionClaimsEndpoint: true, driver });
     const bad = r.results.filter((x) => x.status === 'fail').map((x) => x.id);
     if (kind === 'warn') {
       // a SHOULD-level rule: the mutant is reported, but it is not a conformance failure

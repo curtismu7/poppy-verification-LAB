@@ -17,6 +17,9 @@ export default function VerifyPanel({ info }) {
   const [origin, setOrigin] = useState("");
   const [issuer, setIssuer] = useState("");
   const [probePath, setProbePath] = useState("/poppy/api/v1/me");
+  const [signIn, setSignIn] = useState(false);
+  const [scopes, setScopes] = useState({ read: "", other: "", escalate: "" });
+  const [mcpUrl, setMcpUrl] = useState("");
   const [filter, setFilter] = useState("all");
   const mock = info?.source !== "real";
   useEffect(() => { getJson("/api/verify/checks").then(setCatalog, () => setCatalog(null)); }, []);
@@ -26,7 +29,13 @@ export default function VerifyPanel({ info }) {
   const toggle = (d) => setDefects((cur) => (cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d]));
   const run = async () => {
     setBusy(true); setMsg("");
-    const r = await postJson("/api/verify/run", mock ? { defects } : { origin, issuer, probePath });
+    const body = { origin, issuer, probePath };
+    if (signIn) {
+      body.signIn = true;
+      body.scopes = Object.fromEntries(Object.entries(scopes).filter(([, v]) => v.trim()));
+      if (mcpUrl.trim()) body.mcpUrl = mcpUrl.trim();
+    }
+    const r = await postJson("/api/verify/run", mock ? { defects } : body);
     setBusy(false);
     if (!r.ok) { setReport(null); return setMsg(r.body.message || r.body.error || `HTTP ${r.status}`); }
     setReport(r.body);
@@ -58,12 +67,22 @@ export default function VerifyPanel({ info }) {
           </div>
         ) : (
           <div className="rp-controls" data-testid="verify-real">
-            <p className="rp-controls__main"><b>Real:</b> reads the Company and the issuer you name and sends Session probes with this agent's own key. Only those two hosts are contacted. Checks that need a person to sign in are skipped here, and the verdict says so; use the Run it tab for those. If the probe endpoint does not verify Poppy-Session, the Session checks are skipped with the reason.</p>
+            <p className="rp-controls__main"><b>Real:</b> reads the Company and the issuer you name and sends Session probes with this agent's own key. Only the hosts you type are contacted. If the probe endpoint does not verify Poppy-Session, the Session checks are skipped with the reason.</p>
+            <p className="rp-controls__main muted"><b>Headless sign-in (optional):</b> with the server configured (PVL_SIGNIN_USER and PVL_SIGNIN_PASSWORD) the suite can sign in to the issuer's login and consent pages by itself and run the sign-in, token, refresh, revoke and MCP checks too. The credentials are never sent anywhere but the issuer, and never shown, logged or included in the report. Scope fields map this suite's made-up scope names onto the ones your Company actually uses: read (what the probe path needs), other (one that must not satisfy it), escalate (one that is never granted).</p>
             <div className="rp-fields">
               <label>Company origin<input type="text" value={origin} onChange={(e) => setOrigin(e.target.value)} placeholder="https://company.example" data-testid="verify-origin" /></label>
               <label>Issuer<input type="text" value={issuer} onChange={(e) => setIssuer(e.target.value)} placeholder="https://auth.company.example" data-testid="verify-issuer" /></label>
               <label>Probe path (an endpoint that relies on Poppy-Session claims)<input type="text" value={probePath} onChange={(e) => setProbePath(e.target.value)} data-testid="verify-path" /></label>
             </div>
+            <p className="rp-controls__main"><label className="inline" data-testid="verify-signin-row"><input type="checkbox" checked={signIn} onChange={(e) => setSignIn(e.target.checked)} disabled={!catalog?.signin?.configured} data-testid="verify-signin" /> Sign in with the configured test user{catalog?.signin ? (catalog.signin.configured ? "" : " (needs PVL_SIGNIN_USER and PVL_SIGNIN_PASSWORD on the server)") : ""}</label></p>
+            {signIn && (
+              <div className="rp-fields">
+                <label>Read scope (what the probe path needs)<input type="text" value={scopes.read} onChange={(e) => setScopes((s) => ({ ...s, read: e.target.value }))} placeholder="the scope the probe endpoint requires" data-testid="verify-scope-read" /></label>
+                <label>Other scope (must NOT satisfy the probe path)<input type="text" value={scopes.other} onChange={(e) => setScopes((s) => ({ ...s, other: e.target.value }))} placeholder="a scope that is not enough" data-testid="verify-scope-other" /></label>
+                <label>Escalate scope (never granted)<input type="text" value={scopes.escalate} onChange={(e) => setScopes((s) => ({ ...s, escalate: e.target.value }))} placeholder="a scope the person could never grant" data-testid="verify-scope-escalate" /></label>
+                <label>MCP resource URL (optional)<input type="text" value={mcpUrl} onChange={(e) => setMcpUrl(e.target.value)} placeholder="https://company.example/mcp" data-testid="verify-mcp-url" /></label>
+              </div>
+            )}
           </div>
         )}
         <p>
