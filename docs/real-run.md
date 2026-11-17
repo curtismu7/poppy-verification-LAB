@@ -56,4 +56,32 @@ Checks that still skip in Real mode, with the reason in the report:
 
 The scopes the checks use are mapped at run time (`scopes: { read, other, escalate }`), so no Company-specific scope name is baked into the repo.
 
+### Live result (2026-11-17, headless run against the same live Company and PingFederate)
+
+The hand-run instance on 7822 (this repo at the merge commit, `MODE=real`, agent URL `https://local.ping-devops.com:7822`, TLS from the Company's own CA bundle) ran the whole suite with `signIn: true` and `scopes: { read: 'accounts:read', other: 'expense:read', escalate: 'admin:delete' }`:
+
+**107 checks: 73 pass, 10 fail, 3 warn, 21 skip** — `conformant: false`, `complete: false`.
+
+What the headless sign-in proved, with no browser and no person:
+
+| Area | Result |
+|---|---|
+| The sign-in itself | pass: PAR push, the PF login form and the consent form were driven by the driver, the code came back with `iss`, the token request succeeded, and the signed call to `/poppy/api/v1/me` returned HTTP 200 (`a-signed-in`). |
+| RFC 9207 | both pass: `iss` on the success redirect (`o-iss-success`) and on `access_denied` (`o-iss-error`, the driver's deny path answered the consent with deny). |
+| PKCE | pass: a wrong verifier refused with `invalid_grant` (`o-pkce`); code replay refused (`o-code-replay`). |
+| redirect_uri and resource binding on the token request | pass: `o-redirect-token`, `o-resource-token` both refused with the right error. |
+| Scope enforcement on the API | pass: a token without the read scope got 403 `insufficient_scope` (`a-scope`). |
+
+The 10 failures are real findings about the live stack, reported as the suite saw them (none has been tuned away):
+
+- `o-scope-subset`, `o-scope-missing`, `o-scope-unknown`, `o-pkce-required`, `o-resource-unknown`: PingFederate refuses a bad PAR push with the right error **code** but through its own `invalid_request`/`invalid_scope`/`invalid_target` text, and the two consent-time checks (`o-scope-missing`) reached consent instead of being refused — the negative controls wanted the refusal at a specific step with a specific error. `o-scope-subset` also shows `granted undefined`: the token response carried no `scope` member for these grants, so the check cannot compare asked vs granted.
+- `o-refresh`, `o-refresh-escalate`: the refresh grant is refused with `unauthorized_client` — the CIMD policy does not list `refresh_token` (or the token manager mapping rejects it), so the refresh checks cannot run meaningfully.
+- `o-revoke`: revocation refused with `invalid_request` — the revocation endpoint rejected the request shape or the client.
+- `o-assertion-aud-array`: an assertion with `aud` as a one-element array was accepted as far as the token step (`invalid_grant`, not `invalid_client`), so the aud-as-array refusal is not enforced (the SHOULD `o-assertion-lifetime` and `o-assertion-replay` warnings show the same shape: accepted, MAY-level).
+- `a-mcp-default-token`: the probe origin answers 404 with no `WWW-Authenticate` challenge — the MCP resource is not at `/` on this Company, so the check's path assumption needs the Company's real MCP URL (the MCP sign-in checks skipped for the same reason: no access token manager matches that resource at PingFederate).
+
+The 3 warnings: `s-delegation-cnf-private` (as in the first run) and MAY-level assertion lifetime/replay acceptance.
+
+Skips (21): the 11 variant-client CIMD checks, the 4 second-agent checks, the 2 PS384 checks, and 4 MCP checks (no MCP access token manager registered for the resource at PingFederate — see `a-mcp-own-token` above).
+
 *Live result with the 7822 hand-run instance: pending (run after merge; recorded here per the handoff).*
