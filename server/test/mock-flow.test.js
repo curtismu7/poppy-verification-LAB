@@ -140,14 +140,24 @@ test('POST /api/verify/run in Real: the suite runs with the real agent identity,
 });
 
 test('POST /api/verify/run caps concurrent runs (429 busy) so a burst cannot starve the server', async () => {
-  const a = await mockApp();
-  const results = await Promise.all(Array.from({ length: 8 }, (_, i) => a.call('/api/verify/run', {}, `burst${i}`)));
-  const statuses = results.map((r) => r.status);
-  assert.ok(statuses.includes(200), 'some runs complete');
-  assert.ok(statuses.includes(429), `a burst of 8 is refused beyond 3 in flight: ${statuses.join(',')}`);
-  const busy = results.find((r) => r.status === 429);
-  assert.equal(busy.headers.get('retry-after'), '2');
-  assert.equal((await busy.json()).error, 'busy');
-  // and the server is healthy afterwards
-  assert.equal((await a.call('/api/verify/checks')).status, 200);
+  // Deterministic: the suite is replaced by one the test holds open, so "in flight" does not depend on how fast the machine is.
+  let release; const gate = new Promise((r) => { release = r; });
+  const started = []; 
+  const port = await freePort();
+  const app = createApp({ agent: null, hosted: true, baseUrl: '', sessions: createSessions(), health: health(), localOrigin: `http://127.0.0.1:${port}`, verifyMax: 2, fetchImpl: () => { throw new Error('no network'); },
+    runSuiteImpl: async () => { started.push(1); await gate; return { summary: { pass: 0, fail: 0, warn: 0, skip: 0, total: 0 }, results: [], conformant: true, complete: true }; } });
+  const server = await new Promise((res) => { const s = http.createServer(app).listen(port, '127.0.0.1', () => res(s)); });
+  opened.push(server);
+  const run = (ws) => fetch(`http://127.0.0.1:${port}/api/verify/run`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-workspace': ws }, body: '{}' });
+  const first = run('cap1'); const second = run('cap2');
+  while (started.length < 2) await new Promise((r) => setTimeout(r, 5)); // both are now in flight
+  const third = await run('cap3');
+  assert.equal(third.status, 429);
+  assert.equal(third.headers.get('retry-after'), '2');
+  assert.equal((await third.json()).error, 'busy');
+  release();
+  assert.equal((await first).status, 200);
+  assert.equal((await second).status, 200);
+  assert.equal((await run('cap4')).status, 200, 'a slot frees up again');
+  assert.equal(started.length, 3);
 });

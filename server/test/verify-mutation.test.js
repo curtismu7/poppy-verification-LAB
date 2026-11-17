@@ -36,7 +36,7 @@ const MUTANTS = [
   ['the MCP server does not enforce the scope', C, "resourceId: MCP_URL, requiredScope: 'orders:read'", 'resourceId: MCP_URL', ['a-mcp-scope']],
   ['token/Session client mismatch ignored on MCP', C, 'if (who && who.clientId !== claims.client_id &&', 'if (who && resourceId !== MCP_URL && who.clientId !== claims.client_id &&', ['a-mcp-token-client']],
   ['scope check by family prefix (orders:*)', C, "!String(claims.scope).split(' ').includes(requiredScope)", "!String(claims.scope).split(' ').some((x) => x.split(':')[0] === requiredScope.split(':')[0])", ['a-scope']],
-  ['cnf.jwk with private members is accepted', C, '|| PRIVATE_MEMBERS.some((m) => m in jwk)', '', ['s-delegation-cnf-private']],
+  ['cnf.jwk with private members is accepted', C, '|| PRIVATE_MEMBERS.some((m) => m in jwk)', '', ['s-delegation-cnf-private'], 'warn'],
   ['the Session is only verified when there is no token', C, 'who = await verifySession(', 'who = accessToken ? null : await verifySession(', ['a-ath']],
   ['client assertion aud accepted with a trailing slash', I, 'a.payload.aud === ISSUER ||', "a.payload.aud === ISSUER || a.payload.aud === ISSUER + '/' ||", ['o-assertion-aud-slash']],
   ['client assertion aud accepted as an array', I, 'a.payload.aud === ISSUER ||', '[].concat(a.payload.aud).includes(ISSUER) ||', ['o-assertion-aud-array']],
@@ -65,7 +65,7 @@ const MUTANTS = [
 ];
 
 let n = 0;
-for (const [name, file, from, to, expect] of MUTANTS) {
+for (const [name, file, from, to, expect, kind] of MUTANTS) {
   test(`mutant: ${name}`, async () => {
     const dir = path.join(ROOT, `m${n++}`);
     fs.cpSync(SRC, path.join(dir, 'src'), { recursive: true });
@@ -83,6 +83,12 @@ for (const [name, file, from, to, expect] of MUTANTS) {
     const ref = createReference({ hosts: kit.hosts() });
     const r = await runSuite({ origin: 'https://company.example', fetch: ref.fetch, kit, probePath: '/poppy/api/v1/catalog', probeReady: true, sessionClaimsEndpoint: true, driver: createReferenceDriver(ref) });
     const bad = r.results.filter((x) => x.status === 'fail').map((x) => x.id);
+    if (kind === 'warn') {
+      // a SHOULD-level rule: the mutant is reported, but it is not a conformance failure
+      for (const id of expect) assert.equal(r.results.find((x) => x.id === id).status, 'warn', `${id} should warn`);
+      assert.equal(r.conformant, true, 'a SHOULD-level mutant is not a failure');
+      return;
+    }
     assert.equal(r.conformant, false, 'the suite passed a broken Company');
     for (const id of expect) assert.ok(bad.includes(id), `${id} did not fail; failing: ${bad.join(', ')}`);
   });

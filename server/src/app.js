@@ -41,7 +41,7 @@ const SCOPE_RE = /^[\x21\x23-\x5b\x5d-\x7e]+( [\x21\x23-\x5b\x5d-\x7e]+)*$/;
 
 const safePath = (p) => typeof p === 'string' && p.length <= 300 && !/%2e|%2f|%5c/i.test(p) && /^\/[A-Za-z0-9._~!$&'()*+,;=:@%/-]*$/.test(p) && !p.includes('//') && !p.split('/').includes('..');
 
-export function createApp({ configFile = CONFIG, agent, health = createHealth({ runtime: hostedFrom() ? 'offline' : 'live' }), hosted = hostedFrom(), baseUrl = baseUrlFrom(), sessions = createSessions(), fetchImpl = (...a) => globalThis.fetch(...a), proxyHosts = new Set(), chat = null, localOrigin = 'http://127.0.0.1:7821' } = {}) {
+export function createApp({ configFile = CONFIG, agent, health = createHealth({ runtime: hostedFrom() ? 'offline' : 'live' }), hosted = hostedFrom(), baseUrl = baseUrlFrom(), sessions = createSessions(), fetchImpl = (...a) => globalThis.fetch(...a), proxyHosts = new Set(), chat = null, localOrigin = 'http://127.0.0.1:7821', runSuiteImpl = runSuite, verifyMax = 3 } = {}) {
   // Rule 19: the mode is a mutable holder so POST /api/mode can switch at runtime. Every gate below reads
   // holder.hosted. A hosted build cannot switch to real: realAvailable is false there (no agent config), so it fails closed.
   // `hosted` is the old name for Mock: true = the in-process reference Company and issuer, false = the Company and issuer you type.
@@ -418,7 +418,7 @@ export function createApp({ configFile = CONFIG, agent, health = createHealth({ 
   // Each run does a few hundred signature operations, so a burst could starve the event loop: at most 3 run at once.
   let verifyInFlight = 0;
   api.post('/verify/run', live(async (ws, req, res) => {
-    if (verifyInFlight >= 3) return res.status(429).set('Retry-After', '2').json({ error: 'busy', message: 'Three verification runs are already in progress. Try again in a moment.' });
+    if (verifyInFlight >= verifyMax) return res.status(429).set('Retry-After', '2').json({ error: 'busy', message: 'Three verification runs are already in progress. Try again in a moment.' });
     verifyInFlight += 1;
     try { return await verifyRun(ws, req, res); } finally { verifyInFlight -= 1; }
   }, { needsAgent: false }));
@@ -429,7 +429,7 @@ export function createApp({ configFile = CONFIG, agent, health = createHealth({ 
       if (defects.length > 40 || defects.some((d) => typeof d !== 'string' || !Object.hasOwn(DEFECTS, d))) return res.status(400).json({ error: 'bad_defects', message: 'defects must be names from GET /api/verify/checks' });
       const kit = createAgentKit({ redirectUri: `${localOrigin}/cb` });
       const ref = createReference({ defects, hosts: kit.hosts(), parRequired: b.parRequired === true });
-      const report = await runSuite({ origin: COMPANY_ORIGIN, fetch: ref.fetch, kit, probePath: '/poppy/api/v1/catalog', probeReady: true, sessionClaimsEndpoint: true, driver: createReferenceDriver(ref) });
+      const report = await runSuiteImpl({ origin: COMPANY_ORIGIN, fetch: ref.fetch, kit, probePath: '/poppy/api/v1/catalog', probeReady: true, sessionClaimsEndpoint: true, driver: createReferenceDriver(ref) });
       sessions.log(ws, { kind: 'verify', response: { mode: 'mock', defects, summary: report.summary } });
       return res.json({ mode: 'mock', defects, ...report });
     }
@@ -449,7 +449,7 @@ export function createApp({ configFile = CONFIG, agent, health = createHealth({ 
     };
     const me = identityOf(sessions.get(ws), ws);
     const kit = createAgentKit({ main: { clientId: me.clientId, privateKey: me.privateKey, publicJwk: agent.publicJwk, kid: me.kid }, redirectUri: me.redirectUri, withSecondAgent: false });
-    const report = await runSuite({ origin, fetch: guarded, kit, probePath, probeReady: true });
+    const report = await runSuiteImpl({ origin, fetch: guarded, kit, probePath, probeReady: true });
     sessions.log(ws, { kind: 'verify', response: { mode: 'real', origin, summary: report.summary } });
     return res.json({ mode: 'real', ...report });
   };
