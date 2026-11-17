@@ -93,13 +93,14 @@ export function createApp({ configFile = CONFIG, agent, health = createHealth({ 
     // The sign-in redirect may land on the public agent name, which serves nothing else; send the browser back to the loopback page.
     // Back to the tab the sign-in started from (#chat, #run), so the person lands where they were.
     const home = (q) => `${returnTo || ''}/?${q}${from ? `#${from}` : ''}`;
-    // RFC 9207: if the redirect carries an iss it must be the issuer this sign-in started with (a mix-up with another server is refused),
-    // and if the issuer says it always sends one, its absence is refused too.
+    // Spec 4.2 and RFC 9207: the redirect carries the issuer in iss, errors included, and the agent MUST check it equals the issuer this sign-in
+    // started with. A missing iss cannot match, so it is refused whether or not the issuer advertises the parameter (a mix-up with another
+    // server is the attack this stops). The Real run showed PingFederate sends none until includeIssuerInAuthorizationResponse is on.
     // A repeated or array-valued iss (?iss[]=...) is not a string and is refused, never coerced.
     const iss = req.query.iss === undefined ? undefined : (typeof req.query.iss === 'string' ? req.query.iss : null);
     // What came back on the redirect, for the page and for the iss check: the issuer value (a URL) and whether a code or an error arrived. Never the code.
     sessions.log(ws, { kind: 'return', request: { iss: iss ?? null, code: typeof req.query.code === 'string', error: typeof req.query.error === 'string' ? req.query.error.slice(0, 80) : null, issParamAdvertised: Boolean(rec.config.issParamRequired) } });
-    if ((iss !== undefined && iss !== rec.config.issuerClaim) || (iss === undefined && rec.config.issParamRequired)) {
+    if (iss === undefined || iss !== rec.config.issuerClaim) {
       sessions.log(ws, { kind: 'authorize', error: 'iss_mismatch', detail: iss === null ? 'redirect carried iss more than once or not as text' : `redirect iss ${iss === undefined ? 'missing' : iss.slice(0, 120)} does not match ${rec.config.issuerClaim}` });
       return res.redirect(home('signin=error'));
     }
