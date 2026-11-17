@@ -84,4 +84,3 @@ The 3 warnings: `s-delegation-cnf-private` (as in the first run) and MAY-level a
 
 Skips (21): the 11 variant-client CIMD checks, the 4 second-agent checks, the 2 PS384 checks, and 4 MCP checks (no MCP access token manager registered for the resource at PingFederate — see `a-mcp-own-token` above).
 
-*Live result with the 7822 hand-run instance: pending (run after merge; recorded here per the handoff).*
