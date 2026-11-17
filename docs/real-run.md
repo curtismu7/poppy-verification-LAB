@@ -8,16 +8,16 @@ What this is: the Verify suite in Real mode against a live Company and issuer, f
 
 ## Result
 
-107 checks: **50 pass, 0 fail, 1 warn, 56 skipped** (after the `cnf.jwk` check became a recommendation, see below).
+107 checks: **50 pass, 0 fail, 2 warn, 55 skipped**, so `conformant` is true and `complete` is false (the skipped checks did not run). Two warnings: PingFederate does not advertise `authorization_response_iss_parameter_supported`, and the Company accepts a delegation whose `cnf.jwk` carries private key members (a recommendation, see below).
 
 | | |
 |---|---|
 | Discovery (9 checks) | all pass: `organization.domain` carries the port, scope hints valid, protected resource metadata correct |
 | Issuer metadata (12 checks) | all pass except one warning: PingFederate does not advertise `authorization_response_iss_parameter_supported` |
 | Poppy-Session (30 checks run) | all pass: wrong audience, URL, method, stale or future time, wrong `typ`, alg none and HS256, no delegation, 48 hour delegation, expired delegation, unknown `kid`, forged and self-signed delegation, `ath` without a token, Poppy-Version missing or another major |
-| Skipped | 55 need a person to sign in, plus a second agent identity and PS384 (the real agent publishes an ES256 key only) |
+| Skipped (55) | 53 need a person to sign in; one needs a second agent identity; one needs PS384 (the real agent publishes an ES256 key only) |
 
-**What changed the verdict:** the first run reported one failure, `s-delegation-cnf-private`: the Company accepted a delegation whose `cnf.jwk` carried private key members. Spec 5.2 puts the "MUST NOT" on the delegation the agent builds; its verification steps do not require a Company to refuse one. The check was stricter than the spec, so it is now a recommendation (a warning when accepted), and a mutation test pins that.
+**What changed the verdict:** the first run reported one failure (50 pass, 1 fail, 1 warn, 55 skipped), `s-delegation-cnf-private`: the Company accepted a delegation whose `cnf.jwk` carried private key members. Spec 5.2 puts the "MUST NOT" on the delegation the agent builds; its verification steps do not require a Company to refuse one. The check was stricter than the spec, so it is now a recommendation (a warning when accepted), and a mutation test pins that.
 
 ## Two fixes this run led to (already merged)
 
