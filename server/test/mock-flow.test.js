@@ -48,6 +48,8 @@ test('Mock end to end: discover, PAR, consent screen, redirect with iss, token, 
   const steps = (await (await a.call('/api/state')).json()).steps;
   assert.match(steps.find((x) => x.kind === 'par').request.body, /prompt=consent/, 'the reference issuer lists prompt=consent, so the agent sent it');
   assert.match(r.cb.headers.get('location'), /signin=ok/);
+  const ret = (await (await a.call('/api/state')).json()).steps.find((x) => x.kind === 'return');
+  assert.deepEqual(ret.request, { iss: 'https://auth.company.example', code: true, error: null, issParamAdvertised: true }, 'the redirect is recorded without the code');
   const st = await (await a.call('/api/state')).json();
   assert.equal(st.signedIn, true);
   const c = await (await a.call('/api/call', { path: '/poppy/api/v1/me' })).json();

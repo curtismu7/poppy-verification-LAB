@@ -551,7 +551,7 @@ test('PAR (RFC 9126): when the issuer lists the endpoint the agent pushes the re
     assert.match(cb.headers.get('location'), /signin=ok/);
     const st = await (await get('/api/state', 'par1')).json();
     assert.equal(st.signedIn, true);
-    assert.deepEqual(st.steps.map((s) => s.kind), ['discover', 'par', 'authorize', 'token']);
+    assert.deepEqual(st.steps.map((s) => s.kind), ['discover', 'par', 'authorize', 'return', 'token']);
     assert.equal(st.steps[1].response.status, 201);
   } finally { delete seen.pfMetaOverride; }
 });

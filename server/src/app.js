@@ -97,6 +97,8 @@ export function createApp({ configFile = CONFIG, agent, health = createHealth({ 
     // and if the issuer says it always sends one, its absence is refused too.
     // A repeated or array-valued iss (?iss[]=...) is not a string and is refused, never coerced.
     const iss = req.query.iss === undefined ? undefined : (typeof req.query.iss === 'string' ? req.query.iss : null);
+    // What came back on the redirect, for the page and for the iss check: the issuer value (a URL) and whether a code or an error arrived. Never the code.
+    sessions.log(ws, { kind: 'return', request: { iss: iss ?? null, code: typeof req.query.code === 'string', error: typeof req.query.error === 'string' ? req.query.error.slice(0, 80) : null, issParamAdvertised: Boolean(rec.config.issParamRequired) } });
     if ((iss !== undefined && iss !== rec.config.issuerClaim) || (iss === undefined && rec.config.issParamRequired)) {
       sessions.log(ws, { kind: 'authorize', error: 'iss_mismatch', detail: iss === null ? 'redirect carried iss more than once or not as text' : `redirect iss ${iss === undefined ? 'missing' : iss.slice(0, 120)} does not match ${rec.config.issuerClaim}` });
       return res.redirect(home('signin=error'));

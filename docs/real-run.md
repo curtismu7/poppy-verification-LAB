@@ -27,3 +27,14 @@ What this is: the Verify suite in Real mode against a live Company and issuer, f
 ## Limits
 
 One probe endpoint (`/poppy/api/v1/me`), signed out. Sign-in, refresh, revocation, PKCE, scope and MCP checks were not run against this Company; they need a person to sign in, which the Run it tab does.
+
+## Two sign-in checks, run by hand through a browser (2026-11-17)
+
+The suite cannot drive a real sign-in, so two of the 53 sign-in checks were run by following the Run it flow in Chrome: discover, push the request (PAR), sign in as the demo user on the PingFederate page, approve the consent, then make the signed call. PingFederate first needed a CIMD policy for this lab's client URL (created from the older lab's policy: same token manager, PKCE required). Before that policy, the push was refused with `invalid_client`.
+
+| Check | Result | Evidence |
+|---|---|---|
+| `a-signed-in`: a signed-in call with a matching Session succeeds | **pass** | The Company answered HTTP 200 with `state: signed_in` and the scope `accounts:read`. The Session header was `poppy-session+jwt` / ES256 with `ath`, and its `sub` was the agent's own User ID, not the token's `sub`. The access token's `client_id` was this lab's client URL. |
+| `o-iss-success`: the authorization response carries `iss` (RFC 9207) | **fail** | The lab now records the redirect it receives (the `iss` value, whether a code or an error came back, never the code). PingFederate's redirect carried a `code` and **no `iss`**, and its metadata does not advertise `authorization_response_iss_parameter_supported`. Spec 4.2 asks for `iss` on every authorization response. The same result on two sign-ins. |
+
+**What this means:** PingFederate, as configured here, does not send `iss` on the authorization response. If PingFederate has a setting for RFC 9207 it is off; I did not look for it. This lab's agent still signs in, because it only refuses a *wrong* `iss`, or a missing one when the issuer says it always sends one. Spec 4.2 says the agent must check `iss` matches, which a missing `iss` cannot do, so a strict agent would refuse this sign-in. Whether to be strict is an open decision.
