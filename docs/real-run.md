@@ -82,5 +82,15 @@ The 10 failures are real findings about the live stack, reported as the suite sa
 
 The 3 warnings: `s-delegation-cnf-private` (as in the first run) and MAY-level assertion lifetime/replay acceptance.
 
-Skips (21): the 11 variant-client CIMD checks, the 4 second-agent checks, the 2 PS384 checks, and 4 MCP checks (no MCP access token manager registered for the resource at PingFederate — see `a-mcp-own-token` above).
+### Follow-up run after two issuer-side fixes (2026-11-17, container run)
+
+Two of the findings were environment configuration, and both were fixed and re-run:
+
+- **Refresh** (`o-refresh`, `o-refresh-escalate`): the refusal `unauthorized_client` came from the agent's own client document, which advertised `grant_types: ['authorization_code']` only. PingFederate honours the document for CIMD clients. Fixed in the lab (it now advertises `refresh_token` too — spec 4.4, the suite refreshes by design). Both refresh checks now pass: refresh works, an escalated refresh is refused with `invalid_scope`.
+- **Revocation** (`o-revoke`, `o-revoke-other-client`): the token manager had `Enable Token Revocation` off. Switched on (one field, read back). Both revocation checks now pass — including the cross-client one: another client's revocation attempt is refused and the owner can still refresh. (Note: the earlier run's opposite finding — another client COULD revoke — was real with that config; the flag is the difference.)
+- With the second agent identity (PR #8): `s-delegation-iss` and `a-token-client` pass; `o-refresh-other-client` still fails (the refused other-client refresh attempt consumes the owner's grant — `invalid_grant` on the owner's next refresh), reported as found.
+
+**Result after the fixes: 79 pass, 12 fail, 3 warn, 13 skip.** The remaining fails are the four PAR error-shape/`scope`-member findings (PingFederate's own error text and consent-time refusals, plus no `scope` member in token responses), `o-assertion-aud-array` (an aud array is accepted as far as `invalid_grant`), and the MCP set. MCP stays an environment limit: this PingFederate has no MCP resource registered (the token manager lists no resource URIs, the Company's `poppy.json` publishes no MCP API), so those checks have nothing valid to point at.
+
+Skips (13): the 11 variant-client CIMD checks, the 4 second-agent checks → now run (2 pass, 2 fail) — so the 13 are: 11 CIMD variants and 2 PS384.
 
