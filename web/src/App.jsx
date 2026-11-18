@@ -7,6 +7,8 @@ import VerifyPanel from "./components/VerifyPanel";
 import ConsentScreen from "./components/ConsentScreen";
 import { getJson, postJson, resetWorkspace } from "./api";
 import TopMenu, { applyFontSize } from "./top-menu/TopMenu.jsx";
+import TalkTrackDialog from "./talk-track/TalkTrackDialog.jsx";
+import talkMd from "../../docs/talk-track.md?raw";
 import VerifyMark from "./components/VerifyMark.jsx";
 
 const VERSION = (() => { try { return JSON.parse(fs.readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version || null; } catch { return null; } })();
@@ -35,6 +37,15 @@ function initialTheme() {
 
 export default function App() {
   const [info, setInfo] = useState(undefined); // undefined = loading, null = failed
+  const [talkOpen, setTalkOpen] = useState(false);
+  const talkSteps = (() => {
+    const steps = []; let n = 0;
+    for (const line of talkMd.split("\n")) {
+      const m = line.match(/^\d+\.\s+(?:"(.+?)"|\*\*(.+?)\.\*\*\s*(.*))$/);
+      if (m) { n += 1; steps.push({ id: `s${n}`, title: (m[1] || m[2]).slice(0, 60), say: m[1] || m[3] }); }
+    }
+    return steps.length ? steps : [{ id: "s1", title: "Talk track", say: talkMd.slice(0, 600) }];
+  })();
   const [vertical, setVertical] = useState("banking");
   const [story, setStory] = useState(null);
   const [tab, setTab] = useState(hashTab());
@@ -117,6 +128,7 @@ export default function App() {
           theme={{ value: theme, onChange: pickTheme }}
           fontSize={{ value: fontStep, onChange: setFontStep }}
           present={{ active: presenter, onToggle: () => setPresenter((v) => !v), label: "Presenter (P)" }}
+          talkTrack={{ active: talkOpen, onToggle: () => setTalkOpen((v) => !v) }}
           shelfUrl="https://local.ping-devops.com:8443/"
           help={{ href: "https://github.com/curtismu7/poppy-verification-LAB#readme" }}
           version={VERSION}
@@ -149,6 +161,8 @@ export default function App() {
             <div className="talk">{TALK.map((t) => <section key={t.id}><h2>{t.title}</h2><p>{t.say}</p></section>)}</div>
           )}
         </div>
+      <TalkTrackDialog isOpen={talkOpen} onClose={() => setTalkOpen(false)} talk={talkSteps} />
+
       </main>
     </div>
   );
