@@ -4,7 +4,7 @@ export function clientMetadata({ baseUrl, redirectUri, name = 'Poppy Verificatio
     client_id: `${baseUrl}/client.json`,
     client_name: name,
     redirect_uris: [redirectUri],
-    grant_types: ['authorization_code'],
+    grant_types: ['authorization_code', 'refresh_token'],
     response_types: ['code'],
     token_endpoint_auth_method: 'private_key_jwt',
     token_endpoint_auth_signing_alg: 'ES256',
