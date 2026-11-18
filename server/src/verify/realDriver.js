@@ -46,6 +46,11 @@ export function createRealDriver({ redirectUri, user, password, scopes = {}, mcp
     }
     return { scope: out.join(' ') };
   };
+  // granted scope -> the suite's own names (so checks that compare granted vs asked work in the issuer's space too)
+  const unmapScope = (scope) => {
+    const back = {}; for (const [suite, issuer] of Object.entries(scopeMap)) if (issuer) back[issuer] = suite;
+    return String(scope ?? '').split(' ').filter(Boolean).map((s) => back[s] ?? s).join(' ');
+  };
   return {
     mcpUrl,
     signedInPath: '/poppy/api/v1/me',
@@ -147,7 +152,7 @@ export function createRealDriver({ redirectUri, user, password, scopes = {}, mcp
             const t = await redeem();
             const second = redeemTwice ? await redeem() : undefined;
             if (t.res.status !== 200) return { ok: false, iss: r.iss, error: t.body?.error, reason: `${t.body?.error}: ${t.body?.error_description ?? ''}` };
-            return { ok: true, iss: r.iss, ...t.body, second: second && { status: second.res.status, error: second.body?.error } };
+            return { ok: true, iss: r.iss, ...t.body, ...(t.body?.scope !== undefined ? { scope: unmapScope(t.body.scope) } : {}), second: second && { status: second.res.status, error: second.body?.error } };
           };
           const html = await first.res.text();
           let forms = parseForms(html, first.url);
