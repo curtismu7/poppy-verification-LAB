@@ -42,7 +42,7 @@ const SCOPE_RE = /^[\x21\x23-\x5b\x5d-\x7e]+( [\x21\x23-\x5b\x5d-\x7e]+)*$/;
 
 const safePath = (p) => typeof p === 'string' && p.length <= 300 && !/%2e|%2f|%5c/i.test(p) && /^\/[A-Za-z0-9._~!$&'()*+,;=:@%/-]*$/.test(p) && !p.includes('//') && !p.split('/').includes('..');
 
-export function createApp({ configFile = CONFIG, agent, health = createHealth({ runtime: hostedFrom() ? 'offline' : 'live' }), hosted = hostedFrom(), baseUrl = baseUrlFrom(), sessions = createSessions(), fetchImpl = (...a) => globalThis.fetch(...a), proxyHosts = new Set(), chat = null, localOrigin = 'http://127.0.0.1:7821', runSuiteImpl = runSuite, verifyMax = 3 } = {}) {
+export function createApp({ configFile = CONFIG, agent, secondAgent = null, health = createHealth({ runtime: hostedFrom() ? 'offline' : 'live' }), hosted = hostedFrom(), baseUrl = baseUrlFrom(), sessions = createSessions(), fetchImpl = (...a) => globalThis.fetch(...a), proxyHosts = new Set(), chat = null, localOrigin = 'http://127.0.0.1:7821', runSuiteImpl = runSuite, verifyMax = 3 } = {}) {
   // Rule 19: the mode is a mutable holder so POST /api/mode can switch at runtime. Every gate below reads
   // holder.hosted. A hosted build cannot switch to real: realAvailable is false there (no agent config), so it fails closed.
   // `hosted` is the old name for Mock: true = the in-process reference Company and issuer, false = the Company and issuer you type.
@@ -82,6 +82,9 @@ export function createApp({ configFile = CONFIG, agent, health = createHealth({ 
   // The agent's identity documents: public, GET only.
   app.get('/client.json', (_req, res) => { if (ready()) return res.status(503).json({ error: ready() }); res.set('Cache-Control', 'no-store'); return res.json(clientMetadata({ baseUrl, redirectUri: redirectUri() })); });
   app.get('/jwks.json', (_req, res) => { if (ready()) return res.status(503).json({ error: ready() }); res.set('Cache-Control', 'no-store'); return res.json(jwksDocument(agent.publicJwk, agent.kid)); });
+  // A second agent identity (Real mode, for the suite's cross-agent checks): its own document URL and key. Only public parts here.
+  app.get('/other/client.json', (_req, res) => { if (ready() || !secondAgent) return res.status(503).json({ error: ready() ?? 'no_second_agent' }); res.set('Cache-Control', 'no-store'); return res.json({ ...clientMetadata({ baseUrl, redirectUri: redirectUri(), name: 'Poppy Verification (second agent)' }), client_id: `${baseUrl}/other/client.json`, jwks_uri: `${baseUrl}/other/jwks.json` }); });
+  app.get('/other/jwks.json', (_req, res) => { if (ready() || !secondAgent) return res.status(503).json({ error: ready() ?? 'no_second_agent' }); res.set('Cache-Control', 'no-store'); return res.json(jwksDocument(secondAgent.publicJwk, secondAgent.kid)); });
 
   // The sign-in redirect. It carries a code and a state; the state finds the workspace that started it.
   app.get('/cb', async (req, res) => {
@@ -458,7 +461,10 @@ export function createApp({ configFile = CONFIG, agent, health = createHealth({ 
       return fetchImpl(url, { ...init, headers, signal: AbortSignal.timeout(10000) });
     };
     const me = identityOf(sessions.get(ws), ws);
-    const kit = createAgentKit({ main: { clientId: me.clientId, privateKey: me.privateKey, publicJwk: agent.publicJwk, kid: me.kid }, redirectUri: me.redirectUri, withSecondAgent: false });
+    // The second agent identity (Real mode) when one is configured: the cross-agent checks (token/refresh/revoke theft)
+    // need a second registered client to play the attacker.
+    const other = secondAgent ? { clientId: `${baseUrl}/other/client.json`, es: { privateKey: secondAgent.privateKey, publicJwk: secondAgent.publicJwk }, ps: null, kid: secondAgent.kid, pskid: null, jwks: { keys: [{ ...secondAgent.publicJwk, kid: secondAgent.kid, alg: 'ES256', use: 'sig' }] } } : null;
+    const kit = createAgentKit({ main: { clientId: me.clientId, privateKey: me.privateKey, publicJwk: agent.publicJwk, kid: me.kid }, redirectUri: me.redirectUri, withSecondAgent: false, ...(other ? { other } : {}) });
     // Opt-in headless sign-in (Real only): the driver is on when the request asks for it (signIn: true), the credentials are
     // configured in the environment, and the issuer metadata was readable. The credentials live in createRealDriver's closure only.
     const creds = { user: process.env.PVL_SIGNIN_USER, password: process.env.PVL_SIGNIN_PASSWORD };
