@@ -7,7 +7,7 @@ import { createApp, startHttpServer } from './app.js';
 import { allPassed, runChecks } from './doctor.js';
 import { assertBindAllowed, bindHost, labProxyHosts, resolvePort } from './safety.js';
 import { hostedFrom, baseUrlFrom } from './config.js';
-import { loadAgentKey } from './agentKey.js';
+import { loadAgentKey, loadSecondAgentKey } from './agentKey.js';
 import { chatConfigFrom, createChatClient } from './chatAgent.js';
 
 installNetguard(); // before anything else can open a socket
@@ -31,7 +31,7 @@ const chatCfg = chatConfigFrom(process.env);
 const chat = !hosted && chatCfg.apiKey ? { client: createChatClient(chatCfg), model: chatCfg.model } : null;
 console.log(`[poppy-verification] chat agent: ${chat ? `live (${chat.model})` : 'guided script (set ANTHROPIC_API_KEY for a live agent)'}`);
 // The agent key exists whenever Real is configured, even if the app starts in Mock, so the toggle can switch without a restart.
-const app = createApp({ agent: baseUrlFrom() ? loadAgentKey(dataDir) : null, hosted, baseUrl: baseUrlFrom(), proxyHosts, chat, localOrigin: `http://127.0.0.1:${port}` });
+const app = createApp({ agent: baseUrlFrom() ? loadAgentKey(dataDir) : null, secondAgent: baseUrlFrom() ? loadSecondAgentKey(dataDir) : null, hosted, baseUrl: baseUrlFrom(), proxyHosts, chat, localOrigin: `http://127.0.0.1:${port}` });
 if (process.env.PVL_TLS_CERT && process.env.PVL_TLS_KEY) {
   // PingFederate fetches the agent's client metadata over https, so the agent URL needs a certificate PF trusts.
   const server = https.createServer({ cert: fs.readFileSync(process.env.PVL_TLS_CERT), key: fs.readFileSync(process.env.PVL_TLS_KEY) }, app);

@@ -67,7 +67,7 @@ export function cleanText(value, max = 80) {
 
 // On the agent's public name only these GET paths exist: the two identity documents PingFederate fetches, and the sign-in redirect.
 // Everything else (the API, the page) is loopback-only, so reaching the public name never gives anyone the app.
-export const PUBLIC_PATHS = new Set(['/client.json', '/jwks.json', '/cb']);
+export const PUBLIC_PATHS = new Set(['/client.json', '/jwks.json', '/other/client.json', '/other/jwks.json', '/cb']);
 
 // The family lab-proxy (https://local.ping-devops.com:8443) sends Host `<name>:<this lab's port>` for a name listed in
 // LAB_ALLOWED_HOSTS (a comma list of host names, no ports). Loopback always works; unset means loopback only. index.js

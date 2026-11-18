@@ -17,3 +17,17 @@ export function loadAgentKey(dir) {
   const { d, ...publicJwk } = privateJwk; // eslint-disable-line no-unused-vars
   return { privateKey: crypto.createPrivateKey({ key: privateJwk, format: 'jwk' }), publicJwk, kid: jwkThumbprint(publicJwk) };
 }
+
+/** A second agent identity for the suite's cross-agent checks (Real mode): its own key, its own client document URL. */
+export function loadSecondAgentKey(dir) {
+  const file = path.join(dir, 'agent-key-2.json');
+  let privateJwk;
+  try { privateJwk = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* first run */ }
+  if (!privateJwk?.d) {
+    privateJwk = generateEs256Key().privateJwk;
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    fs.writeFileSync(file, JSON.stringify(privateJwk), { mode: 0o600 });
+  }
+  const { d, ...publicJwk } = privateJwk; // eslint-disable-line no-unused-vars
+  return { privateKey: crypto.createPrivateKey({ key: privateJwk, format: 'jwk' }), publicJwk, kid: jwkThumbprint(publicJwk) };
+}

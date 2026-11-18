@@ -77,7 +77,7 @@ export function createRealDriver({ redirectUri, user, password, scopes = {}, mcp
       };
       const clientAuth = (o = {}) => {
         if (o.omit) return { client_id: kit.main.clientId };
-        // `other` authenticates as a second agent identity (Mock only; in Real the suite skips those checks because kit.other is null).
+        // `other` authenticates as a second agent identity (Real mode: only when the lab has one configured, else the suite skips those checks).
         const who = o.other ? kit.other : kit.main;
         return { client_id: who.clientId, client_assertion_type: ASSERTION_TYPE, client_assertion: kit.assertion({ identity: who, aud: issuer, ...o }) };
       };

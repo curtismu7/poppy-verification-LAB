@@ -18,11 +18,11 @@ function identityFrom(clientId, es, ps) {
 }
 
 /** @param {{main?: object, now?: () => number}} o  `main` lets the real lab agent be the identity (clientId, kid, privateKey, publicJwk). */
-export function createAgentKit({ origin = AGENT_ORIGIN, main = null, redirectUri, now = nowSeconds, withSecondAgent = true, companyId = ISSUER } = {}) {
+export function createAgentKit({ origin = AGENT_ORIGIN, main = null, redirectUri, now = nowSeconds, withSecondAgent = true, other: otherIdentity = null, companyId = ISSUER } = {}) {
   const mainId = main
     ? { clientId: main.clientId, es: { privateKey: main.privateKey, publicJwk: main.publicJwk }, ps: null, kid: main.kid, pskid: null, jwks: { keys: [{ ...main.publicJwk, kid: main.kid, alg: 'ES256', use: 'sig' }] } }
     : identityFrom(`${origin}/client.json`, generateEs256Key(), ps384());
-  const other = withSecondAgent && !main ? identityFrom(`${origin}/other/client.json`, generateEs256Key(), null) : null;
+  const other = otherIdentity ?? (withSecondAgent && !main ? identityFrom(`${origin}/other/client.json`, generateEs256Key(), null) : null);
   const rogue = generateEs256Key(); // a key that no jwks_uri publishes
   const delegated = generateEs256Key();
   const userId = `u-${rand(12)}`;

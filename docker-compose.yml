@@ -23,6 +23,8 @@ services:
       PVL_AGENT_HOST: ${PVL_AGENT_HOST:-}
       PVL_TLS_CERT: ${PVL_TLS_CERT:-}
       PVL_TLS_KEY: ${PVL_TLS_KEY:-}
+      # A local Real run: the Company and issuer present mkcert certs; the bundle is in the /certs mount below.
+      NODE_EXTRA_CA_CERTS: ${NODE_EXTRA_CA_CERTS:-}
       # One-click defaults for the Real form (empty = the visitor types their own; shipped text stays .example).
       PVL_DEMO_COMPANY_ORIGIN: ${PVL_DEMO_COMPANY_ORIGIN:-}
       PVL_DEMO_PF_ISSUER: ${PVL_DEMO_PF_ISSUER:-}
@@ -41,8 +43,14 @@ services:
       - ${PVL_TLS_CERT_DIR:-/dev/null}:/certs:ro
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
+    # A local Real run: the Company and issuer are names on the HOST ( OrbStack: host.docker.internal), not inside this
+    # container's network. /etc/hosts on the host maps them to 127.0.0.1, which here would be the container itself.
+    extra_hosts:
+      - "aidemo.ping.demo:host-gateway"
+      - "local.ping-devops.com:host-gateway"
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:7821/api/health').then(r=>r.json()).then(j=>process.exit(j.schema==='demo-health/1'&&j.state==='ready'?0:1)).catch(()=>process.exit(1))"]
+      # TLS when the agent URL is https (a local Real run), else plain http (the shelf's default).
+      test: ["CMD", "node", "-e", "const u=process.env.PVL_TLS_CERT?'https':'http'; fetch(u+'://127.0.0.1:7821/api/health',{rejectUnauthorized:false}).then(r=>r.json()).then(j=>process.exit(j.schema==='demo-health/1'&&j.state==='ready'?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
       start_period: 5s
       start_interval: 2s
