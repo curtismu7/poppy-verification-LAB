@@ -107,5 +107,15 @@ The remaining non-MCP fails are genuine PingFederate behaviours that are not con
 - `o-assertion-aud-array`: a client assertion whose `aud` is a one-element array is accepted as far as `invalid_grant` (spec 4.1 wants one string; RFC 7523 permits arrays, so this is a SHOULD-level gap).
 - `o-refresh-other-client`: when another client's refresh attempt is refused, the owner's grant is consumed too — the next owner refresh gets `invalid_grant`.
 
+#### The three findings as a Ping support report (PF 13.1.3, config exhausted)
+
+All three were checked against every relevant admin-API setting (auth server settings, the CIMD policy, the token manager's access control and configuration): there is no toggle for any of them in 13.1.3. Each is reproducible with the lab's suite:
+
+1. **Missing scope is not refused.** An authorization request with no `scope` parameter reaches the consent page instead of returning `invalid_scope` (spec 4.7: scope is required on every sign-in; RFC 6749 §3.3). The grant is then created with the client's default scopes (none). Expected: `invalid_scope` at the authorize (or pushed) step.
+2. **Client assertion `aud` as an array is accepted.** A client assertion with `"aud": ["<issuer>"]` authenticates successfully (the failure observed later is `invalid_grant`, not `invalid_client`). PAP spec 4.1 requires `aud` to be the issuer as a single string; RFC 7523 §3 permits arrays for multiple audiences, so accepting a one-element array is a SHOULD-level gap. Expected: `invalid_client` with "aud must be a single value equal to the issuer".
+3. **A refused cross-client refresh consumes the owner's grant.** Client B presents client A's refresh token with B's own client assertion. PF refuses (`unauthorized_client`), but the attempt also destroys A's grant: A's next refresh answers `invalid_grant`. An attacker who has stolen a refresh token can deny the legitimate client service with a single failed request. Expected: the refusal leaves A's grant intact (compare with the revocation endpoint, which correctly binds the grant to the authenticated client).
+
+Reproduction for all three: `curtismu7/poppy-verification-LAB` in Real mode (the suite drives PAR, sign-in and token exchange itself; the checks are `o-scope-missing`, `o-assertion-aud-array`, `o-refresh-other-client`).
+
 Skips (13): the 11 variant-client CIMD checks and the 2 PS384 checks.
 
