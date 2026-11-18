@@ -92,5 +92,20 @@ Two of the findings were environment configuration, and both were fixed and re-r
 
 **Result after the fixes: 79 pass, 12 fail, 3 warn, 13 skip.** The remaining fails are the four PAR error-shape/`scope`-member findings (PingFederate's own error text and consent-time refusals, plus no `scope` member in token responses), `o-assertion-aud-array` (an aud array is accepted as far as `invalid_grant`), and the MCP set. MCP stays an environment limit: this PingFederate has no MCP resource registered (the token manager lists no resource URIs, the Company's `poppy.json` publishes no MCP API), so those checks have nothing valid to point at.
 
-Skips (13): the 11 variant-client CIMD checks, the 4 second-agent checks → now run (2 pass, 2 fail) — so the 13 are: 11 CIMD variants and 2 PS384.
+### Third run: the suite's error-step and scope-omission strictness corrected (2026-11-17)
+
+Two of the remaining "failures" were the suite being stricter than the standards, and both were fixed in the suite (the check, not the target):
+
+- **`o-pkce-required`, `o-scope-unknown`, `o-resource-unknown`**: the checks wanted the refusal as an authorization redirect error; PingFederate refuses at the PAR endpoint instead. RFC 9126 §2.2 says a pushed request is validated and its error returned there — refusing at either step is conformant. The negative controls now accept the same error code at either step. All three pass, refused at the pushed step with the right code.
+- **`o-scope-subset`**: PingFederate omits the `scope` member of the token response when it matches the request. RFC 6749 §5.1 allows exactly that (omission means "identical"). The check now treats an omitted scope as identical — and the driver translates a granted scope back into the suite's own names, so the comparison works in the issuer's scope space too. Passes, and the `grant_extra_scopes` defect still fails it (the Mock reference always includes the member).
+
+**Result: 83 pass, 8 fail, 3 warn, 13 skip.**
+
+The remaining non-MCP fails are genuine PingFederate behaviours that are not configuration-fixable, reported as findings:
+
+- `o-scope-missing`: a sign-in with no scope parameter reaches consent instead of being refused with `invalid_scope` (spec 4.7).
+- `o-assertion-aud-array`: a client assertion whose `aud` is a one-element array is accepted as far as `invalid_grant` (spec 4.1 wants one string; RFC 7523 permits arrays, so this is a SHOULD-level gap).
+- `o-refresh-other-client`: when another client's refresh attempt is refused, the owner's grant is consumed too — the next owner refresh gets `invalid_grant`.
+
+Skips (13): the 11 variant-client CIMD checks and the 2 PS384 checks.
 
