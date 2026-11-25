@@ -29,6 +29,7 @@ export default function VerifyPanel({ info }) {
   const toggle = (d) => setDefects((cur) => (cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d]));
   const run = async () => {
     setBusy(true); setMsg("");
+    window.dispatchEvent(new CustomEvent("pv:run-start")); // Story mode waits for this; a report with failures still ends ok (the failures are the result)
     const body = { origin, issuer, probePath };
     if (signIn) {
       body.signIn = true;
@@ -37,6 +38,14 @@ export default function VerifyPanel({ info }) {
     }
     const r = await postJson("/api/verify/run", mock ? { defects } : body);
     setBusy(false);
+    const ok = r.ok;
+    // Tell Story the run ended only when THIS run's verdict is actually on the page (a previous run's summary may still be
+    // rendered until React swaps it): the run-done bubbles point at what the page shows.
+    const announce = () => window.dispatchEvent(new CustomEvent("pv:run-end", { detail: { ok } }));
+    const want = r.ok && r.body?.conformant ? ".vf-verdict--ok" : ".vf-verdict--bad";
+    let n = 0;
+    const waitPaint = () => { if (document.querySelector(`[data-testid=verify-summary] ${want}`) || n++ > 60) announce(); else requestAnimationFrame(waitPaint); };
+    requestAnimationFrame(waitPaint);
     if (!r.ok) { setReport(null); return setMsg(r.body.message || r.body.error || `HTTP ${r.status}`); }
     setReport(r.body);
   };
