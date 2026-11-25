@@ -48,7 +48,20 @@ export default function RunPanel({ info, resetSignal }) {
   // The radio pair preselects an issuer the deployment configured; the typed value stays editable.
   const pickAs = (which) => { setAs(which); const v = which === "p1" ? info?.defaults?.p1Issuer : info?.defaults?.issuer; if (v) setIssuer(v); };
 
-  const run = async (name, fn) => { setBusy(name); setMsg(""); try { await fn(); } finally { setBusy(""); await refresh(); } };
+  const run = async (name, fn) => {
+    setBusy(name); setMsg("");
+    window.dispatchEvent(new CustomEvent("pv:run-start"));
+    let ok = true; try { await fn(); } catch { ok = false; }
+    setBusy("");
+    await refresh();
+    // Tell Story the run ended only when the rows (or the error) are actually on the page: the run-done bubbles point at what the page shows.
+    const announce = () => window.dispatchEvent(new CustomEvent("pv:run-end", { detail: { ok } }));
+    if (ok) {
+      let n = 0;
+      const waitPaint = () => { if (document.querySelector(".rp-status--ok, .rp-status--warn") || n++ > 40) announce(); else requestAnimationFrame(waitPaint); };
+      requestAnimationFrame(waitPaint);
+    } else setTimeout(announce, 150);
+  };
   const discover = () => run("discover", async () => {
     setMismatch(null);
     const r = await postJson("/api/discover", { origin, issuer });
@@ -58,7 +71,7 @@ export default function RunPanel({ info, resetSignal }) {
     setMsg(r.body.ok ? "The Company's documents pass every check." : "The Company's documents have problems; see the checks.");
   });
   const signIn = () => run("authorize", async () => {
-    const r = await postJson("/api/authorize", { scope, resource: useResource, from: "run" });
+    const r = await postJson("/api/authorize", { scope, resource: useResource, from: "run", story: window.__storyOn === true });
     if (!r.ok) return setMsg(say(r));
     window.location.assign(r.body.url);
   });
@@ -68,7 +81,7 @@ export default function RunPanel({ info, resetSignal }) {
     const offered = Object.keys(r.body.poppy?.auth?.scopes ?? {});
     const chosen = offered.includes("accounts:read") ? "accounts:read" : offered.includes("orders:read") ? "orders:read" : offered[0] ?? "";
     if (chosen) setScope(chosen);
-    const a = await postJson("/api/authorize", { scope: chosen, from: "run" });
+    const a = await postJson("/api/authorize", { scope: chosen, from: "run", story: window.__storyOn === true });
     if (!a.ok) return setMsg((r.body.ok ? "The Company's documents pass every check. " : "The Company's documents have problems; see the checks. ") + say(a));
     window.location.assign(a.body.url);
   });

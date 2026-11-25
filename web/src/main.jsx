@@ -8,6 +8,7 @@ import "./components/JsonPane.css";
 import "./components/RunPanel.css";
 import "./components/Verify.css";
 import "./components/VerifyMark.css";
+import "./story/story.css";
 import "./app.css";
 
 createRoot(document.getElementById("root")).render(<App />);

@@ -18,6 +18,8 @@ COPY server/package.json server/
 RUN npm ci --omit=dev -w server && npm cache clean --force
 COPY server/src server/src
 COPY server/diagrams server/diagrams
+# The Story wording (GET /api/story-captions) is read from video/captions.md at run time; the rest of video/ stays out of the image.
+COPY video/captions.md video/captions.md
 COPY --from=build /app/web/dist web/dist
 RUN mkdir /data && chown node:node /data
 USER node

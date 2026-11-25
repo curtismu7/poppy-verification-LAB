@@ -22,6 +22,7 @@ import { newTrace, formatTraceparent } from './trace.js';
 import { DIAGRAM_NAMES, buildDiagram } from './diagramData.js';
 import { loadCast, verticalFrom, VERTICALS } from './cast.js';
 import { buildStory } from './story.js';
+import { storyResponse } from './storyRoute.js';
 import { buildSample } from './sample.js';
 import { shelfInfo } from './shelfLink.js';
 import { chatTurn, MAX_TEXT } from './chatAgent.js';
@@ -93,10 +94,12 @@ export function createApp({ configFile = CONFIG, agent, secondAgent = null, heal
     const rec = ws && sessions.get(ws);
     if (!rec?.pending || rec.pending.state !== req.query.state) return res.status(400).type('text').send('Unknown or expired sign-in. Start again from the page.');
     const { verifier, useResource, returnTo, from } = rec.pending;
+    // Story mode is on in the tab that started the sign-in: keep ?story=1 across the consent redirect (a query parameter, before the tab fragment) so the walk-through survives the reload.
+    const storyReturn = req.body?.story === true ? '&story=1' : '';
     rec.pending = null;
     // The sign-in redirect may land on the public agent name, which serves nothing else; send the browser back to the loopback page.
     // Back to the tab the sign-in started from (#chat, #run), so the person lands where they were.
-    const home = (q) => `${returnTo || ''}/?${q}${from ? `#${from}` : ''}`;
+    const home = (q) => `${returnTo || ''}/?${q}${storyReturn}${from ? `#${from}` : ''}`;
     // Spec 4.2 and RFC 9207: the redirect carries the issuer in iss, errors included, and the agent MUST check it equals the issuer this sign-in
     // started with. A missing iss cannot match, so it is refused whether or not the issuer advertises the parameter (a mix-up with another
     // server is the attack this stops). The Real run showed PingFederate sends none until includeIssuerInAuthorizationResponse is on.
@@ -155,7 +158,11 @@ export function createApp({ configFile = CONFIG, agent, secondAgent = null, heal
       // The chat tab's live agent: on when the server has a model key (never returned) and the build is not hosted.
       chatAgent: chat && !mock ? { live: true, model: chat.model } : { live: false, reason: mock ? 'mock' : 'no_key' } }); });
   // customer.config.json is read on every request so editing it shows up on reload (rule 12).
-  api.get('/story', (req, res) => { res.set('Cache-Control', 'no-store'); res.json({ ...buildStory(loadCast(configFile, verticalFrom(req.query.vertical))), verticals: Object.keys(VERTICALS) }); });
+  api.get('/talktrack', (req, res) => { res.set('Cache-Control', 'no-store'); res.json({ ...buildStory(loadCast(configFile, verticalFrom(req.query.vertical))), verticals: Object.keys(VERTICALS) }); });
+  // Story mode's wording file (video/captions.md), parsed by the vendored shared parser, at the path the family's tools expect (walk.py reads /api/story).
+  // The talk-track data moves to /api/talktrack; its consumers are updated in the same change. The two are different things: Story mode (the walk-through)
+  // reads the wording file, the talk track reads the spoken story.
+  api.get('/story', (req, res) => { res.set('Cache-Control', 'no-store'); const { status, body } = storyResponse(); res.status(status).json(body); });
   // An example run (invented values, real shape): what the hosted build shows instead of reaching a real Company.
   api.get('/sample', (_req, res) => { res.set('Cache-Control', 'no-store'); res.json(buildSample()); });
   api.get('/diagram', (req, res) => { res.set('Cache-Control', 'no-store'); const name = DIAGRAM_NAMES.includes(req.query.name) ? req.query.name : DIAGRAM_NAMES[0]; res.json(buildDiagram(name)); });

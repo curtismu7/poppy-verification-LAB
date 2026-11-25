@@ -23,7 +23,7 @@ function mockApi({ state = STATE, info = { hosted: false, configured: true, agen
   globalThis.fetch = vi.fn((url) => {
     if (url === "/api/info") return json(info);
     if (url === "/api/state") return json(state);
-    if (url.startsWith("/api/story")) return json({ verticals: ["banking"], cast: {}, talkTrack: [] });
+    if (url.startsWith("/api/talktrack")) return json({ verticals: ["banking"], cast: {}, talkTrack: [] });
     return json({ error: "nope" }, 404);
   });
 }
