@@ -299,7 +299,7 @@ export function createApp({ configFile = CONFIG, agent, secondAgent = null, heal
     if (me.mock) {
       // Mock: the issuer's consent page is a screen of this app (the reference issuer lives in this process). The reference issuer
       // validates the request exactly as a real one would; only then does the person see the consent screen.
-      const start = await mockEnv(rec).ref.issuer.startAuthorization(Object.fromEntries(new URL(url).searchParams));
+      const start = await rec.mock.ref.issuer.startAuthorization(Object.fromEntries(new URL(url).searchParams));
       if (start.kind !== 'consent') {
         rec.pending = null; pendingByState.delete(state);
         const why = start.kind === 'error' ? `${start.error}: ${start.description}` : new URL(start.url).searchParams.get('error');
@@ -420,7 +420,14 @@ export function createApp({ configFile = CONFIG, agent, secondAgent = null, heal
     try {
       const out = action === 'deny' ? rec.mock.ref.issuer.deny(id) : rec.mock.ref.issuer.approve(id, scopes);
       res.set('Cache-Control', 'no-store');
-      return res.json({ redirect: out.url });
+      // Behind the family lab-proxy the browser cannot reach this container's loopback port (the proxy speaks https on 8443 only),
+      // so the sign-in return is the SAME /cb on the proxy origin the visitor came in on (same lab, same workspace, same session —
+      // the /cb handler reads the workspace from the state map, not the address). Direct loopback visitors keep the registered URL.
+      let redirect = out.url;
+      if (rec.pending?.returnTo) {
+        try { const u = new URL(redirect); if (isLoopbackHost(u.hostname)) redirect = `${rec.pending.returnTo}/cb${u.search}`; } catch { /* keep as issued */ }
+      }
+      return res.json({ redirect });
     } catch (e) { return res.status(400).json({ error: e.error || 'bad_request', message: e.message }); }
   });
 
