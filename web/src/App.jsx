@@ -137,7 +137,7 @@ export default function App() {
       <header className="shell-bar">
         <span className="shell-brand">
           <span className="shell-logo" aria-hidden="true">PV</span>
-          <h1>Poppy demo (verification)</h1>
+          <h1>Poppy verification</h1>
           {info?.source === "real"
             ? <span className="shell-badge shell-badge--real" data-testid="mode-badge">Real</span>
             : <span className="shell-badge" data-testid="mode-badge">Mock</span>}
