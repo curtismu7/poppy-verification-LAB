@@ -218,7 +218,7 @@ describe("shell", () => {
     expect(bar).not.toBeNull();
     expect(document.querySelector(".app").firstElementChild).toBe(bar);
     expect(bar.nextElementSibling.tagName).toBe("MAIN");
-    expect(bar.querySelector(".shell-brand h1")).toHaveTextContent("Poppy Verification");
+    expect(bar.querySelector(".shell-brand h1")).toHaveTextContent("Poppy demo (verification)");
     expect(bar.querySelector("[data-testid=mode-badge]")).toHaveTextContent("Mock");
     expect(bar.querySelector('.shell-nav a[aria-current="page"]')).toHaveTextContent("Run it");
     expect(bar.querySelector("[data-testid=top-menu]")).toHaveClass("shell-right");
