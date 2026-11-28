@@ -58,7 +58,7 @@ The **Agent chat** tab is a guided script by default. With `ANTHROPIC_API_KEY` i
 
 ## Presenting
 
-Press `P` for presenter mode; the banner stays. The talk track is in [docs/talk-track.md](docs/talk-track.md).
+Press `P` for presenter mode; the page opens on a Real-or-mock modal (MOCK or REAL) that you dismiss once per browser session. The talk track is in [docs/talk-track.md](docs/talk-track.md).
 
 ## Safety
 
