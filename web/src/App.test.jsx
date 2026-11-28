@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import App, { BANNER_FAILED, BANNER_UNKNOWN } from "./App";
+import App, { MODE_LINES, UNKNOWN_LINES, STORY_PREFIX } from "./App";
+import { storyKey } from "./story/StoryToggle.jsx";
 import { setJsonView } from "./components/JsonPane";
 
 const json = (body, status = 200) => Promise.resolve({ ok: status < 400, status, json: () => Promise.resolve(body) });
@@ -26,26 +27,49 @@ const toToken = () => { toCalls(); fireEvent.click(screen.getByTestId("pager-nex
 beforeEach(() => { window.location.hash = "#run"; setJsonView("raw"); }); // the Form | JSON choice is shared module state: tests that read pane text say which view they read
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
-describe("banner", () => {
-  it("says both until it knows, then REAL when real", async () => {
+// Holds /api/info on a promise so a test sees the page before the server has answered; the returned function releases it.
+function holdInfo() {
+  let release; const gate = new Promise((r) => { release = r; });
+  const inner = globalThis.fetch;
+  globalThis.fetch = vi.fn((url, opts) => (url === "/api/info" ? gate.then(() => inner(url, opts)) : inner(url, opts)));
+  return release;
+}
+
+describe("Real-or-mock modal", () => {
+  it("is held until the mode is known (no wrong label), then says REAL when real, with no simulation banner", async () => {
     mockApi();
+    const release = holdInfo();
     render(<App />);
-    expect(screen.getByTestId("banner").textContent).toBe(BANNER_UNKNOWN);
-    await waitFor(() => expect(screen.getByTestId("banner").textContent).toMatch(/^REAL:/));
+    expect(screen.queryByTestId("mode-modal")).toBeNull();
+    expect(screen.queryByTestId("banner")).toBeNull();
+    release();
+    const modal = await screen.findByTestId("mode-modal");
+    expect(modal).toHaveAttribute("data-mode", "real");
+    expect(modal.textContent).toBe(`REAL${MODE_LINES.real}Got it`);
+    expect(modal.textContent).toMatch(/the Company and the authorization server you name, and to nothing else/);
+    expect(document.querySelector("main > .banner")).toBeNull();
   });
   it("says MOCK in Mock mode, and the actions are on (Mock is a working mode, rule 19)", async () => {
     mockApi({ info: { hosted: true, configured: false, source: "mock", realAvailable: false, reference: { origin: "https://company.example", issuer: "https://auth.company.example" } } });
     render(<App />);
     toCalls();
-    await waitFor(() => expect(screen.getByTestId("banner").textContent).toMatch(/^MOCK:/));
+    const modal = await screen.findByTestId("mode-modal");
+    expect(modal).toHaveAttribute("data-mode", "mock");
+    expect(modal.textContent).toBe(`MOCK${MODE_LINES.mock}Got it`);
+    expect(modal.textContent).toMatch(/nothing leaves this machine/);
+    expect(modal.textContent).toMatch(/every token is a mock token signed by the mock issuer/);
+    expect(modal.textContent).toMatch(/Switch to Real to test a Company you name/);
     await waitFor(() => expect(screen.getByTestId("discover")).toBeEnabled());
     expect(screen.getByTestId("mock-note")).toHaveTextContent("company.example");
   });
-  it("says MODE UNKNOWN (not 'loading') when /api/info fails, and offers no action", async () => {
+  it("says the mode is unknown (not 'loading') when /api/info fails, and offers no action", async () => {
     mockApi({ info: "fail" });
     render(<App />);
     toCalls();
-    await waitFor(() => expect(screen.getByTestId("banner").textContent).toBe(BANNER_FAILED));
+    const modal = await screen.findByTestId("mode-modal");
+    expect(modal).toHaveAttribute("data-mode", "mock"); // unknown reads as MOCK, the cautious label
+    expect(modal.textContent).toBe(`MOCK${UNKNOWN_LINES.mock}Got it`);
+    expect(modal.textContent).toMatch(/cannot say whether this is Mock or Real/);
     expect(screen.getByTestId("mode-select").querySelector('option[value="real"]').disabled).toBe(true); // offers no action while the server is unreachable
     fireEvent.change(screen.getByLabelText("Company origin"), { target: { value: "https://company.example" } });
     fireEvent.change(screen.getByLabelText(/Authorization server issuer/), { target: { value: "https://pf.example" } });
@@ -57,8 +81,46 @@ describe("banner", () => {
     mockApi();
     render(<App />);
     toCalls();
-    expect(screen.getByTestId("banner").textContent).toBe(BANNER_UNKNOWN);
+    expect(screen.queryByTestId("mode-modal")).toBeNull();
     expect(screen.getByTestId("discover")).toBeDisabled();
+  });
+  it("closes on Got it and does not come back in the same session; dismissing the unknown-mode line does not hide the Mock line", async () => {
+    mockApi({ info: { hosted: true, configured: false, source: "mock", realAvailable: false } });
+    sessionStorage.setItem("pvl-mode-unknown-seen-mock", "1");
+    const { unmount } = render(<App />);
+    fireEvent.click(await screen.findByTestId("mode-modal-ok"));
+    expect(screen.queryByTestId("mode-modal")).toBeNull();
+    unmount();
+    mockApi({ info: { hosted: true, configured: false, source: "mock", realAvailable: false } });
+    render(<App />);
+    await waitFor(() => expect(screen.getByTestId("mode-badge")).toBeInTheDocument());
+    expect(screen.queryByTestId("mode-modal")).toBeNull();
+  });
+  it("switching Mock to Real shows REAL even though MOCK was dismissed", async () => {
+    sessionStorage.setItem("pvl-mode-seen-mock", "1");
+    let live = { hosted: true, configured: false, source: "mock", realAvailable: true };
+    mockApi();
+    const inner = globalThis.fetch;
+    globalThis.fetch = vi.fn((url, opts = {}) => {
+      if (url === "/api/info") return json(live);
+      if (url === "/api/mode" && opts.method === "POST") { live = { hosted: false, configured: true, source: "real", realAvailable: true }; return json({ source: "real" }); }
+      return inner(url, opts);
+    });
+    render(<App />);
+    await waitFor(() => expect(screen.getByTestId("mode-badge")).toHaveTextContent("Mock"));
+    expect(screen.queryByTestId("mode-modal")).toBeNull();
+    fireEvent.change(screen.getByTestId("mode-select"), { target: { value: "real" } });
+    const modal = await screen.findByTestId("mode-modal");
+    expect(modal).toHaveAttribute("data-mode", "real");
+    expect(modal.textContent).toBe(`REAL${MODE_LINES.real}Got it`);
+  });
+  it("is not shown over Story mode", async () => {
+    mockApi();
+    localStorage.setItem(storyKey(STORY_PREFIX), "story");
+    render(<App />);
+    await waitFor(() => expect(screen.getByTestId("mode-badge")).toHaveTextContent("Real"));
+    expect(screen.queryByTestId("mode-modal")).toBeNull();
+    localStorage.removeItem(storyKey(STORY_PREFIX));
   });
 });
 
@@ -210,10 +272,10 @@ describe("back from sign-in", () => {
 });
 
 describe("shell", () => {
-  it("shell bar first (brand, Mock badge, nav pills, TopMenu), then <main> with the banner as its first child", async () => {
+  it("shell bar first (brand, Mock badge, nav pills, TopMenu), then <main> with no simulation banner in it", async () => {
     mockApi({ info: { hosted: true, configured: false, source: "mock", realAvailable: false } });
     render(<App />);
-    await waitFor(() => expect(screen.getByTestId("banner").textContent).toMatch(/^MOCK:/));
+    await waitFor(() => expect(screen.getByTestId("mode-modal")).toHaveAttribute("data-mode", "mock"));
     const bar = document.querySelector("header.shell-bar");
     expect(bar).not.toBeNull();
     expect(document.querySelector(".app").firstElementChild).toBe(bar);
@@ -222,7 +284,8 @@ describe("shell", () => {
     expect(bar.querySelector("[data-testid=mode-badge]")).toHaveTextContent("Mock");
     expect(bar.querySelector('.shell-nav a[aria-current="page"]')).toHaveTextContent("Run it");
     expect(bar.querySelector("[data-testid=top-menu]")).toHaveClass("shell-right");
-    expect(document.querySelector("main").firstElementChild).toBe(screen.getByTestId("banner"));
+    expect(screen.queryByTestId("banner")).toBeNull();
+    expect(document.querySelector("main > .banner")).toBeNull();
     expect(document.querySelectorAll("h1")).toHaveLength(1);
   });
   it("the badge says Real when the server runs real", async () => {
@@ -254,12 +317,11 @@ describe("shell", () => {
     fireEvent.keyDown(screen.getByRole("link", { name: "Talk track" }), { key: "Home" });
     expect(screen.getByRole("link", { name: "Verify" })).toHaveAttribute("aria-current", "page");
   });
-  it("presenter mode shows the talk track and keeps the banner; Esc leaves it", async () => {
+  it("presenter mode shows the talk track; Esc leaves it", async () => {
     mockApi();
     render(<App />);
     fireEvent.keyDown(window, { key: "p" });
     expect(screen.getByTestId("presenter-say")).toBeInTheDocument();
-    expect(screen.getByTestId("banner")).toBeInTheDocument();
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByTestId("presenter-say")).toBeNull();
   });

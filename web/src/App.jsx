@@ -11,6 +11,7 @@ import TalkTrackDialog from "./talk-track/TalkTrackDialog.jsx";
 import talkMd from "../../docs/talk-track.md?raw";
 import VerifyMark from "./components/VerifyMark.jsx";
 import StoryToggle, { storyKey } from "./story/StoryToggle.jsx";
+import ModeModal from "./mode-modal/ModeModal.jsx";
 
 // Story mode is loaded only when the viewer switches it on, so the page in Demo mode does not pay for it.
 const StoryRoot = lazy(() => import("./StoryRoot.jsx"));
@@ -41,11 +42,15 @@ export const TABS = [
   { id: "why", label: "Why this protocol" },
   { id: "talk", label: "Talk track" },
 ];
-// Never blank and never claims a mode before it knows: until /api/info answers (or if it fails) it says both.
-export const BANNER_UNKNOWN = "MOCK or REAL: this page is loading. Mock runs against a reference Company and issuer built into this app; Real talks to the Company and issuer you name.";
-export const BANNER_FAILED = "MODE UNKNOWN: the page could not read /api/info from its server, so it cannot say whether this is Mock or Real. Every action is off until the server answers.";
-const BANNER_REAL = "REAL: this agent talks to the Company and the authorization server you name, and to nothing else. Only the person (a demo user) and the agent are test data.";
-const BANNER_MOCK = "MOCK: a reference Company and issuer run inside this app, so nothing leaves this machine. Every token is a mock token, signed by the mock issuer. Switch to Real to test a Company you name.";
+// The Real-or-mock modal's lines (shared/mode-modal). It never claims a mode before it knows: it is held until /api/info answers. If /api/info fails it says MOCK, the cautious label, with
+// the line that the mode is unknown (its own storage key, so dismissing it does not hide the right line later).
+export const MODE_LINES = {
+  mock: "A reference Company and issuer run inside this app, so nothing leaves this machine, and every token is a mock token signed by the mock issuer. Switch to Real to test a Company you name.",
+  real: "This agent talks to the Company and the authorization server you name, and to nothing else. Only the person (a demo user) and the agent are test data.",
+};
+export const UNKNOWN_LINES = {
+  mock: "The page could not read /api/info from its server, so it cannot say whether this is Mock or Real. Every action is off until the server answers.",
+};
 
 const hashTab = () => { const h = window.location.hash.replace("#", ""); return TABS.some((t) => t.id === h) ? h : "verify"; };
 
@@ -130,8 +135,7 @@ export default function App() {
     document.getElementById(`tab-${next.id}`)?.focus();
   };
 
-  const hosted = info ? !!info.hosted : null;
-  const banner = info === null ? BANNER_FAILED : hosted === true ? BANNER_MOCK : hosted === false ? BANNER_REAL : BANNER_UNKNOWN;
+  const hosted = info ? !!info.hosted : null; // here "hosted" is the server's word for Mock (the in-process reference Company)
   return (
     <div className={`app${presenter ? " app--presenter" : ""}`}>
       <header className="shell-bar">
@@ -169,7 +173,6 @@ export default function App() {
         </TopMenu>
       </header>
       <main className="page">
-        <p className="banner" role="status" data-testid="banner">{banner}</p>
         <p className="sr-only" role="status" aria-live="polite">{resetMsg}</p>
         {!presenter && <p className="intro">Check a Company against the Personal Agent Protocol 1.0: run the conformance suite, or play the personal agent yourself (discover, sign in with a URL as your client id, call the API with a signed Poppy-Session).</p>}
         <div id={`panel-${tab}`}>
@@ -202,6 +205,7 @@ export default function App() {
       ) : null}
 
       </main>
+      <ModeModal mode={hosted === false ? "real" : "mock"} lines={info === null ? UNKNOWN_LINES : MODE_LINES} suppress={storyOn || info === undefined} storageKey={info === null ? "pvl-mode-unknown" : "pvl-mode"} />
     </div>
   );
 }
